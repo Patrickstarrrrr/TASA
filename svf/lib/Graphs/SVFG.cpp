@@ -28,6 +28,8 @@
  */
 
 #include "SVFIR/SVFModule.h"
+#include "SVFIR/SVFValue.h"
+#include "Util/GeneralType.h"
 #include "Util/SVFUtil.h"
 #include "Graphs/SVFG.h"
 #include "Graphs/SVFGOPT.h"
@@ -37,6 +39,7 @@
 #include "MemoryModel/PointerAnalysisImpl.h"
 #include <fstream>
 #include "Util/Options.h"
+#include "Util/ThreadAPI.h"
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -758,6 +761,73 @@ const CallICFGNode* SVFG::isCallSiteRetSVFGNode(const SVFGNode* node) const
 void SVFG::performStat()
 {
     stat->performStat();
+}
+
+
+void SVFG::computeReachableNodesByID(NodeID id)
+{
+    if (reachableSet.test(id)) return;
+    reachableSet.set(id);
+    SVFGNode* node = this->getSVFGNode(id);
+    for (auto edge: node->getOutEdges())
+    {
+        NodeID dstID = edge->getDstID();
+        computeReachableNodesByID(dstID);
+    }
+}
+
+void SVFG::initInputNodeSet()
+{
+    const SVFFunction* mainFunc = SVFUtil::getProgEntryFunction();
+    FormalINSVFGNodeSet& formalIns = getFormalINSVFGNodes(mainFunc);
+    // auto& formalparam = getFormalParmVFGNode(mainFunc);
+    for (NodeID id: formalIns)
+    {
+        inputNodeSet.set(id);
+    }
+    if (pag->hasFunArgsList(mainFunc)) {
+        const SVFIR::SVFVarList& funArgList = pag->getFunArgsList(mainFunc);
+        for (const PAGNode* fun_arg: funArgList)
+        {
+            NodeID id = getFormalParmVFGNode(fun_arg)->getId();
+            inputNodeSet.set(id);
+        }
+    }
+    Set<const SVFVar*> inputVarSet;
+    for (const CallICFGNode* callsites: pag->getCallSiteSet()) 
+    {
+        const SVFFunction* fun = callsites->getCalledFunction();
+        if (fun == nullptr) 
+            continue;
+        if (fun->getName() == "scanf") {
+            auto acParms = callsites->getActualParms();
+            int firstInputID = 1;
+            for (int i = firstInputID; i < acParms.size(); ++i) 
+            {
+                const SVFVar* inputVar = acParms[i];
+                inputVarSet.insert(inputVar);
+            }
+        }
+        else if (fun->getName() == "sscanf" || fun->getName() == "fscanf") {
+            auto acParms = callsites->getActualParms();
+            int firstInputID = 2;
+            for (int i = firstInputID; i < acParms.size(); ++i) 
+            {
+                const SVFVar* inputVar = acParms[i];
+                inputVarSet.insert(inputVar);
+            }
+        }
+        else if (fun->getName() == "fread") {
+            auto acParms = callsites->getActualParms();
+            const SVFVar* inputVar = acParms[0];
+            inputVarSet.insert(inputVar);
+        }
+    }
+    for (auto inputVar: inputVarSet)
+    {
+        auto defID = getDef(inputVar);
+        inputNodeSet.set(defID);
+    }
 }
 
 /*!

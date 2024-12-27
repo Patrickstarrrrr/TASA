@@ -43,6 +43,7 @@
 #include "WPA/VersionedFlowSensitive.h"
 #include "WPA/TypeAnalysis.h"
 #include "WPA/Steensgaard.h"
+#include <iostream>
 
 using namespace SVF;
 

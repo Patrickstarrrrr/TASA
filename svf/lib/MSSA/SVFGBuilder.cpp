@@ -83,6 +83,20 @@ SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
     if(Options::DumpVFG())
         svfg->dump("svfg_final");
 
+    if (Options::ComputeInputReachable())
+    {
+        std::cout<< "\nSinitInputNodeSet begin...\n";
+        svfg->initInputNodeSet();
+        std::cout << "inputNoddeSet size: " << svfg->inputNodeSet.count() << "\n";
+        std::cout<< "Number of SVFG nodes: " << svfg->getSVFGNodeNum() << "\n";
+        std::cout<< "computeReachableNodesByID begin...\n";
+        for (NodeID id: svfg->inputNodeSet) 
+        {
+            svfg->computeReachableNodesByID(id);
+        }
+        std::cout<< "Number of reachable nodes: " << svfg->reachableSet.count() << "\n";
+        std::cout<< "Number of SVFG nodes: " << svfg->getSVFGNodeNum() << "\n";
+    }
     return svfg.get();
 }
 

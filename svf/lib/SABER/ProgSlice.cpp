@@ -28,6 +28,8 @@
  */
 
 #include "SABER/ProgSlice.h"
+#include "Util/Options.h"
+#include <utility>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -168,6 +170,30 @@ bool ProgSlice::isSatisfiableForPairs()
             if(!isEquivalentBranchCond(guard, getFalseCond()))
             {
                 setFinalCond(guard);
+                if (Options::ComputeInputReachable())
+                {
+                    NodeID srcid = (*it)->getId();
+                    NodeID dstid = (*sit)->getId();
+                    bool srcReach = svfg->reachableSet.test(srcid);
+                    bool dstReach = svfg->reachableSet.test(dstid);
+                    if (srcReach && dstReach) {
+                        inputsReachableBugs++;
+                        std::cout << "Both Reachable : (" << srcid << ", " << dstid << ")\n";
+                    }
+                    else if (srcReach) {
+                        inputsHalfReachableBugs++;
+                        std::cout << "First Reachable : (" << srcid << ", " << dstid << ")\n";
+                    }
+                    else if (dstReach) {
+                        inputsHalfReachableBugs++;
+                        std::cout << "Second Reachable : (" << srcid << ", " << dstid << ")\n";
+                    }
+                    else {
+                        inputsUnreachableBugs++;
+                        std::cout << "Both Unreachable : (" << srcid << ", " << dstid << ")\n";
+                    }
+                }
+                bugnum++;
                 return false;
             }
         }

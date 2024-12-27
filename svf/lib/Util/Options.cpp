@@ -807,4 +807,7 @@ const Option<u32_t> Options::AEPrecision(
     0
 );
 
+const Option<bool> Options::ComputeInputReachable(
+    "reachable","Collect the SVFG nodes reachable by input",false);
+
 } // namespace SVF.

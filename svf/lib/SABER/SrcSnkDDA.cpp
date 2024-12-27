@@ -106,6 +106,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
         reportBug(getCurSlice());
     }
+    // if (Options::ComputeInputReachable() && Options::DFreeCheck())
+    // {
+    //     std::cout << "Total DF Bugs:" <<  << ")\n";
+    // }
     finalize();
 
 }

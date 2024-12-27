@@ -32,6 +32,9 @@
 
 #include "Graphs/VFG.h"
 #include "Graphs/SVFGNode.h"
+#include "Util/GeneralType.h"
+#include <utility>
+#include <vector>
 
 namespace SVF
 {
@@ -95,6 +98,25 @@ public:
     typedef MemSSA::ENTRYCHI ENTRYCHI;
     typedef MemSSA::CALLCHI CALLCHI;
     typedef MemSSA::CALLMU CALLMU;
+
+    // typedef  ReachableMap;
+    // typedef NodeBS ReachableSet;
+    // Map<NodeID, NodeBS> reachableMap;
+    NodeBS reachableSet;
+    NodeBS inputNodeSet;
+    std::vector<std::pair<NodeID, NodeID>> dfSet;
+    NodeBS DFSrcSet, DFSnkSet;
+
+public:
+    void computeReachableNodesByID(NodeID id);
+    void initInputNodeSet();
+    inline void addDFPair(NodeID srcid, NodeID dstid)
+    {
+        dfSet.push_back(std::make_pair(srcid, dstid));
+        DFSrcSet.set(srcid);
+        DFSnkSet.set(dstid);
+    }
+
 
 protected:
     MSSAVarToDefMapTy MSSAVarToDefMap;	///< map a memory SSA operator to its definition SVFG node

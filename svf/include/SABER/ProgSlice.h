@@ -320,6 +320,11 @@ private:
     const SVFGNode* _curSVFGNode;			///<  current svfg node during guard computation
     Condition finalCond;					///<  final condition
     const SVFG* svfg;						///<  SVFG
+    
+    unsigned bugnum;
+    unsigned inputsReachableBugs;
+    unsigned inputsHalfReachableBugs;
+    unsigned inputsUnreachableBugs;
 };
 
 } // End namespace SVF
