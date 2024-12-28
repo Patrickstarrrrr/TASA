@@ -320,7 +320,8 @@ private:
     const SVFGNode* _curSVFGNode;			///<  current svfg node during guard computation
     Condition finalCond;					///<  final condition
     const SVFG* svfg;						///<  SVFG
-    
+
+public:
     unsigned bugnum;
     unsigned inputsReachableBugs;
     unsigned inputsHalfReachableBugs;

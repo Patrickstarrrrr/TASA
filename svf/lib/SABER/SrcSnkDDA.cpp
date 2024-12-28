@@ -106,10 +106,11 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
         reportBug(getCurSlice());
     }
-    // if (Options::ComputeInputReachable() && Options::DFreeCheck())
-    // {
-    //     std::cout << "Total DF Bugs:" <<  << ")\n";
-    // }
+    if (Options::ComputeInputReachable() && Options::DFreeCheck())
+    {
+        std::cout << "Total DF Bugs:" << _curSlice->bugnum << ")\n";
+        std::cout << "Input Unreachable DF Bugs:" << _curSlice->inputsUnreachableBugs << ")\n";
+    }
     finalize();
 
 }
@@ -275,14 +276,23 @@ void SrcSnkDDA::BWProcessIncomingEdge(const DPIm&, SVFGEdge* edge)
 /// Set current slice
 void SrcSnkDDA::setCurSlice(const SVFGNode* src)
 {
+    int totalbugs = 0;
+    int halfreach = 0;
+    int unreach = 0;
     if(_curSlice!=nullptr)
     {
+        totalbugs = _curSlice->bugnum;
+        halfreach = _curSlice->inputsHalfReachableBugs;
+        unreach = _curSlice->inputsUnreachableBugs;
         delete _curSlice;
         _curSlice = nullptr;
         clearVisitedMap();
     }
 
     _curSlice = new ProgSlice(src,getSaberCondAllocator(), getSVFG());
+    _curSlice->bugnum = totalbugs;
+    _curSlice->inputsHalfReachableBugs = halfreach;
+    _curSlice->inputsUnreachableBugs = unreach;
 }
 
 void SrcSnkDDA::annotateSlice(ProgSlice* slice)
