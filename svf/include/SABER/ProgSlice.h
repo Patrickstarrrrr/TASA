@@ -46,6 +46,7 @@
 namespace SVF
 {
 
+class SrcSnkDDA;
 class ProgSlice
 {
 
@@ -62,9 +63,9 @@ public:
 
 
     /// Constructor
-    ProgSlice(const SVFGNode* src, SaberCondAllocator* pa, const SVFG* graph):
+    ProgSlice(const SVFGNode* src, SaberCondAllocator* pa, const SVFG* graph, SrcSnkDDA* dda):
         root(src), partialReachable(false), fullReachable(false), reachGlob(false),
-        pathAllocator(pa), _curSVFGNode(nullptr), finalCond(pa->getFalseCond()), svfg(graph)
+        pathAllocator(pa), _curSVFGNode(nullptr), finalCond(pa->getFalseCond()), svfg(graph), ssDDA(dda)
     {
     }
 
@@ -326,6 +327,7 @@ public:
     unsigned inputsReachableBugs;
     unsigned inputsHalfReachableBugs;
     unsigned inputsUnreachableBugs;
+    SrcSnkDDA* ssDDA;
 };
 
 } // End namespace SVF

@@ -289,7 +289,7 @@ void SrcSnkDDA::setCurSlice(const SVFGNode* src)
         clearVisitedMap();
     }
 
-    _curSlice = new ProgSlice(src,getSaberCondAllocator(), getSVFG());
+    _curSlice = new ProgSlice(src,getSaberCondAllocator(), getSVFG(), this);
     _curSlice->bugnum = totalbugs;
     _curSlice->inputsHalfReachableBugs = halfreach;
     _curSlice->inputsUnreachableBugs = unreach;

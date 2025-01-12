@@ -113,8 +113,23 @@ protected:
         return it->second;
     }
     //@}
+public:
+    /// Record a sink to its callsite
+    //@{
+    inline void addSnkToCSID(const SVFGNode* snk, const CallICFGNode* cs)
+    {
+        snkToCSIDMap[snk] = cs;
+    }
+    inline const CallICFGNode* getSnkCSID(const SVFGNode* snk)
+    {
+        SVFGNodeToCSIDMap::iterator it =snkToCSIDMap.find(snk);
+        assert(it!=srcToCSIDMap.end() && "sink node not at a callsite??");
+        return it->second;
+    }
+    //@}
 private:
     SVFGNodeToCSIDMap srcToCSIDMap;
+    SVFGNodeToCSIDMap snkToCSIDMap; // snk info
 };
 
 } // End namespace SVF

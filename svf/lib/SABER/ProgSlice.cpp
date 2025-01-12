@@ -28,7 +28,12 @@
  */
 
 #include "SABER/ProgSlice.h"
+#include "Graphs/SVFG.h"
+#include "SABER/LeakChecker.h"
+#include "SVFIR/SVFValue.h"
+#include "Util/Casting.h"
 #include "Util/Options.h"
+#include "Util/ThreadAPI.h"
 #include <utility>
 
 using namespace SVF;
@@ -170,27 +175,52 @@ bool ProgSlice::isSatisfiableForPairs()
             if(!isEquivalentBranchCond(guard, getFalseCond()))
             {
                 setFinalCond(guard);
+                const SVFGNode* src = *it;
+                const SVFGNode* dst = *sit;
+                auto dda = (LeakChecker*)(ssDDA);
+                std::cout << "sink 1 at : (" 
+                    << dda->getSnkCSID(src)->getSourceLoc()
+                    << ")\n";
+                std::cout << "sink 2 at : (" 
+                    << dda->getSnkCSID(dst)->getSourceLoc()
+                    << ")\n";
                 if (Options::ComputeInputReachable())
                 {
+                    const SVFValue* srcvalue = src->getValue();
+                    const SVFValue* dstvalue = dst->getValue();
+                    const std::string srcloc = srcvalue->getSourceLoc();
+                    const std::string dstloc = dstvalue->getSourceLoc();
                     NodeID srcid = (*it)->getId();
                     NodeID dstid = (*sit)->getId();
                     bool srcReach = svfg->reachableSet.test(srcid);
                     bool dstReach = svfg->reachableSet.test(dstid);
                     if (srcReach && dstReach) {
                         inputsReachableBugs++;
-                        std::cout << "Both Reachable : (" << srcid << ", " << dstid << ")\n";
+                        std::cout << "Both Reachable : (" 
+                        << srcid << " at : [" << srcloc  << "]" 
+                        << ", " 
+                        << dstid << " at : [" << dstloc << "])\n";
                     }
                     else if (srcReach) {
                         inputsHalfReachableBugs++;
-                        std::cout << "First Reachable : (" << srcid << ", " << dstid << ")\n";
+                        std::cout << "First Reachable : ("
+                        << srcid << " at : [" << srcloc  << "]" 
+                        << ", " 
+                        << dstid << " at : [" << dstloc << "])\n";
                     }
                     else if (dstReach) {
                         inputsHalfReachableBugs++;
-                        std::cout << "Second Reachable : (" << srcid << ", " << dstid << ")\n";
+                        std::cout << "Second Reachable : ("
+                        << srcid << " at : [" << srcloc  << "]" 
+                        << ", " 
+                        << dstid << " at : [" << dstloc << "])\n";
                     }
                     else {
                         inputsUnreachableBugs++;
-                        std::cout << "Both Unreachable : (" << srcid << ", " << dstid << ")\n";
+                        std::cout << "Both Unreachable : ("
+                        << srcid << " at : [" << srcloc  << "]" 
+                        << ", " 
+                        << dstid << " at : [" << dstloc << "])\n";
                     }
                 }
                 bugnum++;
