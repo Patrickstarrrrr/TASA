@@ -164,7 +164,7 @@ bool ProgSlice::isSatisfiableForAll()
  */
 bool ProgSlice::isSatisfiableForPairs()
 {
-
+    bool ret = true;
     for(SVFGNodeSetIter it = sinksBegin(), eit = sinksEnd(); it!=eit; ++it)
     {
         for(SVFGNodeSetIter sit = it, esit = sinksEnd(); sit!=esit; ++sit)
@@ -224,12 +224,13 @@ bool ProgSlice::isSatisfiableForPairs()
                     }
                 }
                 bugnum++;
-                return false;
+                // return false;
+                ret = false;
             }
         }
     }
 
-    return true;
+    return ret;
 }
 
 const CallICFGNode* ProgSlice::getCallSite(const SVFGEdge* edge) const

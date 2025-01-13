@@ -188,16 +188,27 @@ cJSON * DoubleFreeBug::getBugDescription() const
 
 void DoubleFreeBug::printBugToTerminal() const
 {
-    SVFUtil::errs() << SVFUtil::bugMsg2("\t Double Free :") <<  " memory allocation at : ("
+    SVFUtil::outs() << SVFUtil::bugMsg2("\t Double Free :") <<  " memory allocation at : ("
                     << GenericBug::getLoc() << ")\n";
 
-    SVFUtil::errs() << "\t\t double free path: \n";
+    SVFUtil::outs() << "\t\t double free path: \n";
     auto lastBranchEventIt = bugEventStack.end() - 1;
     for(auto eventIt = bugEventStack.begin(); eventIt != lastBranchEventIt; eventIt++)
     {
-        SVFUtil::errs() << "\t\t  --> (" << (*eventIt).getEventLoc() << "|" << (*eventIt).getEventDescription() << ") \n";
+        SVFUtil::outs() << "\t\t  --> (" << (*eventIt).getEventLoc() << "|" << (*eventIt).getEventDescription() << ") \n";
     }
-    SVFUtil::errs() << "\n";
+    SVFUtil::outs() << "\n";
+
+    // SVFUtil::errs() << SVFUtil::bugMsg2("\t Double Free :") <<  " memory allocation at : ("
+    //                 << GenericBug::getLoc() << ")\n";
+
+    // SVFUtil::errs() << "\t\t double free path: \n";
+    // auto lastBranchEventIt = bugEventStack.end() - 1;
+    // for(auto eventIt = bugEventStack.begin(); eventIt != lastBranchEventIt; eventIt++)
+    // {
+    //     SVFUtil::errs() << "\t\t  --> (" << (*eventIt).getEventLoc() << "|" << (*eventIt).getEventDescription() << ") \n";
+    // }
+    // SVFUtil::errs() << "\n";
 }
 
 cJSON * FileNeverCloseBug::getBugDescription() const
