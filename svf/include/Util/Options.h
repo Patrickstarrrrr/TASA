@@ -269,6 +269,9 @@ public:
 
 
     static const Option<bool> ComputeInputReachable;
+    static const Option<bool> PrintInputReachable;
+    static const Option<bool> PrintDFBugSinkInfo;
+    static const Option<bool> BranchBBInfo;
 };
 }  // namespace SVF
 

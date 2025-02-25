@@ -776,15 +776,29 @@ void SVFG::computeReachableNodesByID(NodeID id)
     }
 }
 
+void SVFG::computeBackwardReachableNodesByID(NodeID id)
+{
+    if (backwardReachableSet.test(id)) return;
+    backwardReachableSet.set(id);
+    SVFGNode* node = this->getSVFGNode(id);
+    for (auto edge: node->getInEdges())
+    {
+        NodeID srcID = edge->getSrcID();
+        computeBackwardReachableNodesByID(srcID);
+    }
+}
+
 void SVFG::initInputNodeSet()
 {
     const SVFFunction* mainFunc = SVFUtil::getProgEntryFunction();
-    FormalINSVFGNodeSet& formalIns = getFormalINSVFGNodes(mainFunc);
-    // auto& formalparam = getFormalParmVFGNode(mainFunc);
-    for (NodeID id: formalIns)
-    {
-        inputNodeSet.set(id);
-    }
+    // We don't need FormalIns of mainFunc.
+    // FormalINSVFGNodeSet& formalIns = getFormalINSVFGNodes(mainFunc);
+    // // auto& formalparam = getFormalParmVFGNode(mainFunc);
+    // for (NodeID id: formalIns)
+    // {
+    //     inputNodeSet.set(id);
+    // }
+    // We need FormalParams (argc, argv) of mainFunc.
     if (pag->hasFunArgsList(mainFunc)) {
         const SVFIR::SVFVarList& funArgList = pag->getFunArgsList(mainFunc);
         for (const PAGNode* fun_arg: funArgList)

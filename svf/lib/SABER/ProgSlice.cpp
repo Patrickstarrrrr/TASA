@@ -178,12 +178,15 @@ bool ProgSlice::isSatisfiableForPairs()
                 const SVFGNode* src = *it;
                 const SVFGNode* dst = *sit;
                 auto dda = (LeakChecker*)(ssDDA);
-                std::cout << "sink 1 at : (" 
-                    << dda->getSnkCSID(src)->getSourceLoc()
-                    << ")\n";
-                std::cout << "sink 2 at : (" 
-                    << dda->getSnkCSID(dst)->getSourceLoc()
-                    << ")\n";
+                if (Options::PrintDFBugSinkInfo())
+                {
+                    std::cout << "sink 1 at : (" 
+                        << dda->getSnkCSID(src)->getSourceLoc()
+                        << ")\n";
+                    std::cout << "sink 2 at : (" 
+                        << dda->getSnkCSID(dst)->getSourceLoc()
+                        << ")\n";
+                }
                 if (Options::ComputeInputReachable())
                 {
                     const SVFValue* srcvalue = src->getValue();
@@ -196,31 +199,47 @@ bool ProgSlice::isSatisfiableForPairs()
                     bool dstReach = svfg->reachableSet.test(dstid);
                     if (srcReach && dstReach) {
                         inputsReachableBugs++;
-                        std::cout << "Both Reachable : (" 
-                        << srcid << " at : [" << srcloc  << "]" 
-                        << ", " 
-                        << dstid << " at : [" << dstloc << "])\n";
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Both Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
                     }
                     else if (srcReach) {
                         inputsHalfReachableBugs++;
-                        std::cout << "First Reachable : ("
-                        << srcid << " at : [" << srcloc  << "]" 
-                        << ", " 
-                        << dstid << " at : [" << dstloc << "])\n";
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "First Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
                     }
                     else if (dstReach) {
                         inputsHalfReachableBugs++;
-                        std::cout << "Second Reachable : ("
-                        << srcid << " at : [" << srcloc  << "]" 
-                        << ", " 
-                        << dstid << " at : [" << dstloc << "])\n";
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Second Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
                     }
                     else {
                         inputsUnreachableBugs++;
-                        std::cout << "Both Unreachable : ("
-                        << srcid << " at : [" << srcloc  << "]" 
-                        << ", " 
-                        << dstid << " at : [" << dstloc << "])\n";
+                        if (Options::BranchBBInfo()) {
+                            dda->unreachableSinks.set(srcid);
+                            dda->unreachableSinks.set(dstid);
+                        }
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Both Unreachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
                     }
                 }
                 bugnum++;

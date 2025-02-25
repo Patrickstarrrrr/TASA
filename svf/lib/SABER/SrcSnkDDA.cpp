@@ -29,8 +29,12 @@
 
 
 #include "Util/Options.h"
+#include "Graphs/SVFG.h"
 #include "SABER/SrcSnkDDA.h"
 #include "Graphs/SVFGStat.h"
+#include "SVFIR/SVFIR.h"
+#include "SVFIR/SVFStatements.h"
+#include "SVFIR/SVFValue.h"
 #include "Util/Options.h"
 #include "WPA/Andersen.h"
 
@@ -108,8 +112,84 @@ void SrcSnkDDA::analyze(SVFModule* module)
     }
     if (Options::ComputeInputReachable() && Options::DFreeCheck())
     {
-        std::cout << "Total DF Bugs:" << _curSlice->bugnum << ")\n";
-        std::cout << "Input Unreachable DF Bugs:" << _curSlice->inputsUnreachableBugs << ")\n";
+        std::cout << "Total DF Bugs:" << _curSlice->bugnum << "\n";
+        std::cout << "Input Unreachable DF Bugs:" << _curSlice->inputsUnreachableBugs << "\n";
+        unsigned unreachableSinks = 0;
+        for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
+        {
+            const SVFGNode* sink = *it;
+            if (svfg->reachableSet.test(sink->getId()))
+            {
+                unreachableSinks++;
+            }
+        }
+        std::cout << "Total Sinks:" << getSinks().size() << "\n";
+        std::cout << "Input Unreachable Sinks:" << unreachableSinks << "\n";
+    }
+    if (Options::BranchBBInfo())
+    {
+        std::cout << "Compute Branch BB Info begin ...\n";
+        
+        Map<NodeID, Set<const SVFBasicBlock*>> svfgNodeToBBs;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToBranches;
+
+        std::cout << "Collect Sink BWBB begin ...\n";
+        // for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
+        for (NodeID sinkid : unreachableSinks)
+        {
+            // const SVFGNode* sink = *it;
+            svfg->backwardReachableSet.clear();
+            svfg->computeBackwardReachableNodesByID(sinkid);
+            for (auto it : svfg->backwardReachableSet)
+            {
+                const SVFGNode* node = svfg->getSVFGNode(it);
+                const SVFBasicBlock* bb = node->getICFGNode()->getBB();
+                // std::cout << "Sink: " << sink->getId() << " BB: " << bb->getName() << "\n";
+                svfgNodeToBBs[sinkid].insert(bb);
+            }
+        }
+        std::cout << "Collect Sink BWBB end\n";
+        std::cout << "Collect Branch begin ...\n";
+        for (auto branchStmt : svfg->getPAG()->getSVFStmtSet(SVFStmt::Branch))
+        {
+            const BranchStmt* branch = SVFUtil::cast<BranchStmt>(branchStmt);
+            auto succAndCondPairVec = branch->getSuccessors();
+            for (auto succAndCondPair: succAndCondPairVec)
+            {
+                const ICFGNode* succ = succAndCondPair.first;
+                const SVFBasicBlock* bb = succ->getBB();
+                for (auto it = svfgNodeToBBs.begin(), eit = svfgNodeToBBs.end(); it != eit; ++it)
+                {
+                    if (it->second.find(bb) != it->second.end())
+                    {
+                        svfgNodeToBranches[it->first].insert(branch);
+                    }
+                }
+            }
+        }
+        std::cout << "Collect Branch end\n";
+        
+        int max = svfgNodeToBranches.begin()->second.size();
+        int min = svfgNodeToBranches.begin()->second.size(); 
+        int total = 0;
+        for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
+        {
+            if (max < it->second.size())
+            {
+                max = it->second.size();
+            }
+            if (min > it->second.size())
+            {
+                min = it->second.size();
+            }
+            total += it->second.size();
+        }
+        double avg = total / svfgNodeToBranches.size();
+        std::cout << "Max Branches: " << max << "\n";
+        std::cout << "Min Branches: " << min << "\n";
+        std::cout << "Total Branches: " << total << "\n";
+        std::cout << "Avg Branches: " << avg << "\n";
+        std::cout << "Compute Branch BB Info end ...\n";
     }
     finalize();
 

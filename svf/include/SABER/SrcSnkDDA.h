@@ -320,6 +320,9 @@ protected:
     void printZ3Stat();
     //@}
 
+    public:
+    NodeBS unreachableSinks;
+
 };
 
 } // End namespace SVF

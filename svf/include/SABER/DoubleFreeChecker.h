@@ -31,6 +31,7 @@
 #define DOUBLEFREECHECKER_H_
 
 #include "SABER/LeakChecker.h"
+#include "Util/GeneralType.h"
 
 namespace SVF
 {

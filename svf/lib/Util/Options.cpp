@@ -808,6 +808,19 @@ const Option<u32_t> Options::AEPrecision(
 );
 
 const Option<bool> Options::ComputeInputReachable(
-    "reachable","Collect the SVFG nodes reachable by input",false);
+    "reachable","Collect the SVFG nodes reachable by input",false
+);
+
+const Option<bool> Options::PrintInputReachable(
+    "print-reachable","Print the SVFG nodes reachable by input",false
+);
+
+const Option<bool> Options::PrintDFBugSinkInfo(
+    "print-dfbug-sink","Print the sink info of DF bugs",false
+);
+
+const Option<bool> Options::BranchBBInfo(
+    "branch-bb-info","Record the branch BB info",true
+);
 
 } // namespace SVF.

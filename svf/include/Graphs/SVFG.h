@@ -103,12 +103,14 @@ public:
     // typedef NodeBS ReachableSet;
     // Map<NodeID, NodeBS> reachableMap;
     NodeBS reachableSet;
+    NodeBS backwardReachableSet;
     NodeBS inputNodeSet;
     std::vector<std::pair<NodeID, NodeID>> dfSet;
     NodeBS DFSrcSet, DFSnkSet;
 
 public:
     void computeReachableNodesByID(NodeID id);
+    void computeBackwardReachableNodesByID(NodeID id);
     void initInputNodeSet();
     inline void addDFPair(NodeID srcid, NodeID dstid)
     {

@@ -33,6 +33,7 @@
 #include "Graphs/SVFG.h"
 #include "MSSA/SVFGBuilder.h"
 #include "WPA/Andersen.h"
+#include <iostream>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -85,10 +86,21 @@ SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
 
     if (Options::ComputeInputReachable())
     {
-        std::cout<< "\nSinitInputNodeSet begin...\n";
+        std::cout<< "\ninitInputNodeSet begin...\n";
         svfg->initInputNodeSet();
         std::cout << "inputNoddeSet size: " << svfg->inputNodeSet.count() << "\n";
         std::cout<< "Number of SVFG nodes: " << svfg->getSVFGNodeNum() << "\n";
+        if (Options::PrintInputReachable()) {
+            std::cout << "Input SVFG nodes: \n";
+            for (auto id: svfg->inputNodeSet)
+            {
+                SVFGNode* node = svfg->getSVFGNode(id);
+                if (node)
+                {
+                    std::cout << node->toString() << "\n";
+                }
+            }
+        }
         std::cout<< "computeReachableNodesByID begin...\n";
         for (NodeID id: svfg->inputNodeSet) 
         {
@@ -96,6 +108,18 @@ SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
         }
         std::cout<< "Number of reachable nodes: " << svfg->reachableSet.count() << "\n";
         std::cout<< "Number of SVFG nodes: " << svfg->getSVFGNodeNum() << "\n";
+    }
+    if (Options::PrintInputReachable())
+    {   
+        std::cout << "Reachable SVFG nodes: \n";
+        for (auto id: svfg->reachableSet)
+        {
+            SVFGNode* node = svfg->getSVFGNode(id);
+            if (node)
+            {
+                std::cout << node->toString() << "\n";
+            }
+        }
     }
     return svfg.get();
 }
