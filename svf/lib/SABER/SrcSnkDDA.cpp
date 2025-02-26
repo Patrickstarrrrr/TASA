@@ -171,7 +171,7 @@ void SrcSnkDDA::analyze(SVFModule* module)
         
         int max = svfgNodeToBranches.begin()->second.size();
         int min = svfgNodeToBranches.begin()->second.size(); 
-        int total = 0;
+        float total = 0;
         for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
         {
             if (max < it->second.size())
