@@ -40,6 +40,7 @@
 #include "Graphs/SVFGOPT.h"
 #include "SABER/ProgSlice.h"
 #include "SABER/SaberSVFGBuilder.h"
+#include "Util/GeneralType.h"
 #include "Util/GraphReachSolver.h"
 #include "Util/SVFBugReport.h"
 
@@ -64,7 +65,7 @@ public:
     typedef Set<const CallICFGNode*> CallSiteSet;
     typedef NodeBS SVFGNodeBS;
     typedef ProgSlice::VFWorkList WorkList;
-
+    typedef Map<NodeID, NodeID> SinkToPAGNodeMap;
 private:
     ProgSlice* _curSlice;		/// current program slice
     SVFGNodeSet sources;		/// source nodes
@@ -73,6 +74,8 @@ private:
     SVFGNodeToDPItemsMap nodeToDPItemsMap;	///<  record forward visited dpitems
     SVFGNodeSet visitedSet;	///<  record backward visited nodes
 
+    SinkToPAGNodeMap sinkToPAGNodeMap;	///< map a sink to its corresponding PAG node
+    
 protected:
     SaberSVFGBuilder memSSA;
     SVFG* svfg;
@@ -234,6 +237,12 @@ public:
     inline void addToSinks(const SVFGNode* node)
     {
         sinks.insert(node);
+    }
+
+
+    inline void addSinkToPAGNodeMap(const SVFGNode* sink, const PAGNode* pagNode)
+    {
+        sinkToPAGNodeMap[sink->getId()] = pagNode->getId();
     }
     //@}
 

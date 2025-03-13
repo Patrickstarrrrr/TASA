@@ -29,14 +29,19 @@
 
 
 #include "Util/Options.h"
+#include "Graphs/IRGraph.h"
 #include "Graphs/SVFG.h"
+#include "Graphs/VFGNode.h"
 #include "SABER/SrcSnkDDA.h"
 #include "Graphs/SVFGStat.h"
 #include "SVFIR/SVFIR.h"
 #include "SVFIR/SVFStatements.h"
 #include "SVFIR/SVFValue.h"
+#include "Util/GeneralType.h"
 #include "Util/Options.h"
 #include "WPA/Andersen.h"
+#include "Graphs/PTIG.h"
+#include <iostream>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -131,24 +136,101 @@ void SrcSnkDDA::analyze(SVFModule* module)
         std::cout << "Compute Branch BB Info begin ...\n";
         
         Map<NodeID, Set<const SVFBasicBlock*>> svfgNodeToBBs;
+        Map<NodeID, Set<const SVFBasicBlock*>> svfgNodeToBBs_PTIA; // with points-to influence analysis
         Map<NodeID, Set<const BranchStmt*>> svfgNodeToBranches;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToBranches_PTIA;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToLoopBranches;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToLoopBranches_PTIA;
+        
+        // for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
+        // Collect the bbs that are backward reachable from the input-unreachable-sinks.
+
+        std::cout << "Build PTIA begin ...\n";
+        AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(PAG::getPAG());
+        PTIG* ptig = new PTIG(ander->getConstraintGraph());
+        std::cout << "Build PTIA end\n";
 
         std::cout << "Collect Sink BWBB begin ...\n";
-        // for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
         for (NodeID sinkid : unreachableSinks)
         {
             // const SVFGNode* sink = *it;
             svfg->backwardReachableSet.clear();
             svfg->computeBackwardReachableNodesByID(sinkid);
+            // SVFGNode* sinkNode = svfg->getSVFGNode(sinkid);
+            PAGNode* sinkPAGNode = getPAG()->getGNode(sinkToPAGNodeMap[sinkid]);
+            NodeBS ptigReachSet = ptig->computeReachableRepNodes(sinkPAGNode->getId());
+
             for (auto it : svfg->backwardReachableSet)
             {
                 const SVFGNode* node = svfg->getSVFGNode(it);
                 const SVFBasicBlock* bb = node->getICFGNode()->getBB();
                 // std::cout << "Sink: " << sink->getId() << " BB: " << bb->getName() << "\n";
                 svfgNodeToBBs[sinkid].insert(bb);
+                NodeID sinkPagNodeID = sinkPAGNode->getId();
+                if (SVFUtil::isa<AddrVFGNode>(node)) {
+                    const AddrVFGNode* addrNode = SVFUtil::cast<AddrVFGNode>(node);
+                    const AddrStmt* addrStmt = SVFUtil::cast<AddrStmt>(addrNode->getPAGEdge());
+                    NodeID dstID = addrStmt->getLHSVarID();
+                    if (ptig->isReachable(sinkPagNodeID, dstID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                else if (SVFUtil::isa<CopyVFGNode>(node)) {
+                    const CopyVFGNode* copyNode = SVFUtil::cast<CopyVFGNode>(node);
+                    const CopyStmt* copyStmt = SVFUtil::cast<CopyStmt>(copyNode->getPAGEdge());
+                    NodeID dstID = copyStmt->getLHSVarID();
+                    if (ptig->isReachable(sinkPagNodeID, dstID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                else if (SVFUtil::isa<GepVFGNode>(node)) {
+                    const GepVFGNode* gepNode = SVFUtil::cast<GepVFGNode>(node);
+                    const GepStmt* gepStmt = SVFUtil::cast<GepStmt>(gepNode->getPAGEdge());
+                    NodeID dstID = gepStmt->getLHSVarID();
+                    if (ptig->isReachable(sinkPagNodeID, dstID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                else if (SVFUtil::isa<LoadVFGNode>(node)) {
+                    const LoadVFGNode* loadNode = SVFUtil::cast<LoadVFGNode>(node);
+                    const LoadStmt* loadStmt = SVFUtil::cast<LoadStmt>(loadNode->getPAGEdge());
+                    NodeID dstID = loadStmt->getLHSVarID();
+                    if (ptig->isReachable(sinkPagNodeID, dstID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                else if (SVFUtil::isa<StoreVFGNode>(node)) {
+                    const StoreVFGNode* storeNode = SVFUtil::cast<StoreVFGNode>(node);
+                    const StoreStmt* storeStmt = SVFUtil::cast<StoreStmt>(storeNode->getPAGEdge());
+                    NodeID srcID = storeStmt->getRHSVarID();
+                    if (ptig->isReachable(sinkPagNodeID, srcID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                else if (SVFUtil::isa<PHIVFGNode>(node)) {
+                    const PHIVFGNode* phiNode = SVFUtil::cast<PHIVFGNode>(node);
+                    const PAGNode* res = phiNode->getRes();
+                    NodeID resID = res->getId();
+                    if (ptig->isReachable(sinkPagNodeID, resID))
+                    {
+                        svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                    }
+                }
+                // else {
+                //     svfgNodeToBBs_PTIA[sinkid].insert(bb);
+                // }
             }
         }
         std::cout << "Collect Sink BWBB end\n";
+
+        
+
+        // Collect the branches that are backward reachable from the input-unreachable-sinks.
         std::cout << "Collect Branch begin ...\n";
         for (auto branchStmt : svfg->getPAG()->getSVFStmtSet(SVFStmt::Branch))
         {
@@ -165,13 +247,23 @@ void SrcSnkDDA::analyze(SVFModule* module)
                         svfgNodeToBranches[it->first].insert(branch);
                     }
                 }
+
+                for (auto it = svfgNodeToBBs_PTIA.begin(), eit = svfgNodeToBBs_PTIA.end(); it != eit; ++it)
+                {
+                    if (it->second.find(bb) != it->second.end())
+                    {
+                        svfgNodeToBranches_PTIA[it->first].insert(branch);
+                    }
+                }
             }
         }
         std::cout << "Collect Branch end\n";
         
-        int max = svfgNodeToBranches.begin()->second.size();
-        int min = svfgNodeToBranches.begin()->second.size(); 
-        float total = 0;
+       
+        double max = svfgNodeToBranches.begin()->second.size();
+        double min = svfgNodeToBranches.begin()->second.size(); 
+        double total = 0;
+        
         for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
         {
             if (max < it->second.size())
@@ -183,14 +275,89 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 min = it->second.size();
             }
             total += it->second.size();
+            // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
         }
         double avg = total / svfgNodeToBranches.size();
         std::cout << "Max Branches: " << max << "\n";
         std::cout << "Min Branches: " << min << "\n";
         std::cout << "Total Branches: " << total << "\n";
         std::cout << "Avg Branches: " << avg << "\n";
+        std::cout << "*********************\n";
+
+        double max_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
+        double min_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
+        double total_ptig = 0;
+        for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
+        {
+            if (max_ptig < it->second.size())
+            {
+                max_ptig = it->second.size();
+            }
+            if (min_ptig > it->second.size())
+            {
+                min_ptig = it->second.size();
+            }
+            total_ptig += it->second.size();
+            // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
+        }
+        double avg_ptig = total_ptig / svfgNodeToBranches_PTIA.size();
+        std::cout << "Max PTIG Branches: " << max_ptig << "\n";
+        std::cout << "Min PTIG Branches: " << min_ptig << "\n";
+        std::cout << "Total PTIG Branches: " << total_ptig << "\n";
+        std::cout << "Avg PTIG Branches: " << avg_ptig << "\n";
+
         std::cout << "Compute Branch BB Info end ...\n";
+
+        float noLoopSVFGNode = 0;
+        for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
+        {
+            bool hasLoop = false;
+            for (auto branchit = it->second.begin(), ebranchit = it->second.end(); branchit != ebranchit; ++branchit)
+            {
+                const BranchStmt* branch = *branchit;
+                const SVFBasicBlock* bb = branch->getBB();
+                
+                if (bb->getParent()->isLoopHeader(bb))
+                {
+                    svfgNodeToLoopBranches[it->first].insert(branch);
+                    hasLoop = true;
+                }
+            }
+            if (!hasLoop)
+            {
+                noLoopSVFGNode++;
+            }
+            std::cout <<  (hasLoop ? "[L]":"[X]") << " SVFGNode: " << it->first << "Total Branches: " << svfgNodeToBranches[it->first].size() << " LoopBranches: " << svfgNodeToLoopBranches[it->first].size() << "\n";
+        }
+
+        std::cout <<  "No Loop Branch SVFGNode Num:" << noLoopSVFGNode << "\n";
+        std::cout << "*********************\n";
+
+        float noLoopSVFGNode_PTIG = 0;
+        for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
+        {
+            bool hasLoop = false;
+            for (auto branchit = it->second.begin(), ebranchit = it->second.end(); branchit != ebranchit; ++branchit)
+            {
+                const BranchStmt* branch = *branchit;
+                const SVFBasicBlock* bb = branch->getBB();
+                
+                if (bb->getParent()->isLoopHeader(bb))
+                {
+                    svfgNodeToLoopBranches_PTIA[it->first].insert(branch);
+                    hasLoop = true;
+                }
+            }
+            if (!hasLoop)
+            {
+                noLoopSVFGNode_PTIG++;
+            }
+            std::cout <<  (hasLoop ? "[L]":"[X]") << " SVFGNode: " << it->first << "Total Branches: " << svfgNodeToBranches_PTIA[it->first].size() << " LoopBranches: " << svfgNodeToLoopBranches_PTIA[it->first].size() << "\n";
+        }
+
+        std::cout <<  "No Loop Branch SVFGNode Num PTIG:" << noLoopSVFGNode_PTIG << "\n";
     }
+
     finalize();
 
 }

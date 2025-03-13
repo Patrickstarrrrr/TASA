@@ -380,6 +380,17 @@ public:
 
     /// View graph from the debugger.
     void view();
+
+public:
+    inline NodeToRepMap& getNodeToRepMap()
+    {
+        return nodeToRepMap;
+    }
+
+    inline NodeToSubsMap& getNodeToSubsMap()
+    {
+        return nodeToSubsMap;
+    }
 };
 
 
