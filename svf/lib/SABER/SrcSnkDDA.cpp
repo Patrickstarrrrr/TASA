@@ -259,54 +259,62 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         std::cout << "Collect Branch end\n";
         
-       
-        double max = svfgNodeToBranches.begin()->second.size();
-        double min = svfgNodeToBranches.begin()->second.size(); 
-        double total = 0;
-        
-        for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
+       if (svfgNodeToBranches.size() != 0)
         {
-            if (max < it->second.size())
+            
+            double max = svfgNodeToBranches.begin()->second.size();
+            double min = svfgNodeToBranches.begin()->second.size(); 
+            double total = 0;
+            
+            for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
             {
-                max = it->second.size();
+                if (max < it->second.size())
+                {
+                    max = it->second.size();
+                }
+                if (min > it->second.size())
+                {
+                    min = it->second.size();
+                }
+                total += it->second.size();
+                // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
             }
-            if (min > it->second.size())
-            {
-                min = it->second.size();
-            }
-            total += it->second.size();
-            // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
+            double avg = total / svfgNodeToBranches.size();
+            std::cout << "Max Branches: " << max << "\n";
+            std::cout << "Min Branches: " << min << "\n";
+            std::cout << "Total Branches: " << total << "\n";
+            std::cout << "Avg Branches: " << avg << "\n";
+            std::cout << "*********************\n";
+        } else {
+            std::cout << "svfgNodeToBranches.size() == 0!\n";
         }
-        double avg = total / svfgNodeToBranches.size();
-        std::cout << "Max Branches: " << max << "\n";
-        std::cout << "Min Branches: " << min << "\n";
-        std::cout << "Total Branches: " << total << "\n";
-        std::cout << "Avg Branches: " << avg << "\n";
-        std::cout << "*********************\n";
+        if (svfgNodeToBranches_PTIA.size() != 0) {
+            double max_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
+            double min_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
+            double total_ptig = 0;
+            for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
+            {
+                if (max_ptig < it->second.size())
+                {
+                    max_ptig = it->second.size();
+                }
+                if (min_ptig > it->second.size())
+                {
+                    min_ptig = it->second.size();
+                }
+                total_ptig += it->second.size();
+                // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
+            }
+            double avg_ptig = total_ptig / svfgNodeToBranches_PTIA.size();
+            std::cout << "Max PTIG Branches: " << max_ptig << "\n";
+            std::cout << "Min PTIG Branches: " << min_ptig << "\n";
+            std::cout << "Total PTIG Branches: " << total_ptig << "\n";
+            std::cout << "Avg PTIG Branches: " << avg_ptig << "\n";
 
-        double max_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
-        double min_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
-        double total_ptig = 0;
-        for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
-        {
-            if (max_ptig < it->second.size())
-            {
-                max_ptig = it->second.size();
-            }
-            if (min_ptig > it->second.size())
-            {
-                min_ptig = it->second.size();
-            }
-            total_ptig += it->second.size();
-            // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
+            std::cout << "Compute Branch BB Info end ...\n";
+        } else {
+            std::cout << "svfgNodeToBranches_PTIA.size() == 0!\n";
         }
-        double avg_ptig = total_ptig / svfgNodeToBranches_PTIA.size();
-        std::cout << "Max PTIG Branches: " << max_ptig << "\n";
-        std::cout << "Min PTIG Branches: " << min_ptig << "\n";
-        std::cout << "Total PTIG Branches: " << total_ptig << "\n";
-        std::cout << "Avg PTIG Branches: " << avg_ptig << "\n";
-
-        std::cout << "Compute Branch BB Info end ...\n";
 
         float noLoopSVFGNode = 0;
         for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
