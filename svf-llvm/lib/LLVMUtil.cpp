@@ -615,6 +615,33 @@ std::string LLVMUtil::dumpValueAndDbgInfo(const Value *val)
     return rawstr.str();
 }
 
+std::string LLVMUtil::dumpVariableName(const Value *val)
+{
+    std::string str;
+    llvm::raw_string_ostream rawstr(str);
+    if (val) {
+        if (const Instruction* inst = SVFUtil::dyn_cast<Instruction>(val))
+        {
+            const llvm::DbgDeclareInst *DDI = SVFUtil::dyn_cast<llvm::DbgDeclareInst>(inst);
+            if (DDI)
+            {
+                llvm::DILocalVariable *DILVar = SVFUtil::cast<llvm::DILocalVariable>(DDI->getVariable());
+                if (DILVar)
+                {
+                    rawstr << "loc name: " << DILVar->getName().str() << ", ";
+                }
+                llvm::DIVariable *DIVar = SVFUtil::cast<llvm::DIVariable>(DDI->getVariable());
+                if (DIVar) {
+                    rawstr << "name: " << DIVar->getName().str() << ", \"ln\": " << DIVar->getLine() << ", \"fl\": \"" << DIVar->getFilename().str() << "\"";
+                }
+            }
+        }
+    }
+    else
+        rawstr << " llvm Value is null";
+    return rawstr.str();
+}
+
 bool LLVMUtil::isHeapAllocExtCallViaRet(const Instruction* inst)
 {
     LLVMModuleSet* pSet = LLVMModuleSet::getLLVMModuleSet();

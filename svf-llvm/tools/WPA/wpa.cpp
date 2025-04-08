@@ -26,6 +26,7 @@
  // Author: Yulei Sui,
  */
 
+#include "SVF-LLVM/LLVMModule.h"
 #include "SVF-LLVM/LLVMUtil.h"
 #include "SVF-LLVM/SVFIRBuilder.h"
 #include "WPA/WPAPass.h"
@@ -63,7 +64,21 @@ int main(int argc, char** argv)
         /// Build SVFIR
         SVFIRBuilder builder(svfModule);
         pag = builder.build();
-
+        if (Options::SVFGVariableName())
+        {
+            for (auto it = pag->begin(), eit = pag->end(); it != eit; ++it)
+            {
+                PAGNode* node = it->second;
+                if (!node->hasValue()) continue;
+                const llvm::Value* value = LLVMModuleSet::getLLVMModuleSet()->getLLVMValue(node->getValue());
+                if (value)
+                {
+                    std::cout << "PAGNode: " << node->getId() << "\n";
+                    node->dump();
+                    std::cout << "\n" << " Variable Name: " << LLVMUtil::dumpVariableName(value) << "\n";
+                }
+            }
+        }
     }
 
     WPAPass wpa;

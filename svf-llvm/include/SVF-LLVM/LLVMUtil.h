@@ -351,6 +351,8 @@ std::string dumpType(const Type* type);
 
 std::string dumpValueAndDbgInfo(const Value* val);
 
+std::string dumpVariableName(const Value* val);
+
 bool isHeapAllocExtCallViaRet(const Instruction *inst);
 
 bool isHeapAllocExtCallViaArg(const Instruction *inst);

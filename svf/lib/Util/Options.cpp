@@ -823,4 +823,7 @@ const Option<bool> Options::BranchBBInfo(
     "branch-bb-info","Record the branch BB info",true
 );
 
+const Option<bool> Options::SVFGVariableName(
+    "svfg-variable-name","Print the variable name in SVFG",false
+);
 } // namespace SVF.
