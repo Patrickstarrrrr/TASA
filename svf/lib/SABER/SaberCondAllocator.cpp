@@ -28,6 +28,8 @@
  *      Author: Yulei Sui
  */
 
+#include "Graphs/GenericGraph.h"
+#include "SVFIR/SVFVariables.h"
 #include "Util/Options.h"
 #include "SABER/SaberCondAllocator.h"
 #include "Util/DPItem.h"
@@ -188,7 +190,20 @@ SaberCondAllocator::evaluateTestNullLikeExpr(const BranchStmt *branchStmt, const
 
     const SVFBasicBlock* succ1 = branchStmt->getSuccessor(0)->getBB();
 
-    const ValVar* condVar = SVFUtil::cast<ValVar>(branchStmt->getCondition());
+    // wjy: fix cast null pointer
+    const SVFVar* cond = branchStmt->getCondition();
+    if (!cond) 
+        return Condition::nullExpr();
+
+    const ValVar* condVar = SVFUtil::cast<ValVar>(cond);
+    if (!condVar) 
+        return Condition::nullExpr();
+
+    const SVFBaseNode* gnode = condVar->getGNode();
+    if (!gnode)
+        return Condition::nullExpr();
+    
+    // const ValVar* condVar = SVFUtil::cast<ValVar>(branchStmt->getCondition());
     if (isTestNullExpr(SVFUtil::cast<ICFGNode>(condVar->getGNode())))
     {
         // succ is then branch
