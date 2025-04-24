@@ -33,6 +33,7 @@
 #include "SVFIR/SVFType.h"
 #include "Util/iterator.h"
 #include "Graphs/GraphTraits.h"
+#include <string>
 
 namespace SVF
 {
@@ -283,6 +284,23 @@ public:
         return sourceLoc;
     }
 
+    inline virtual void setSourceFile(const std::string& sourceFileInfo)
+    {
+        sourceFile = sourceFileInfo;
+    }
+    inline virtual const std::string getSourceFile() const
+    {
+        return sourceFile;
+    }
+    inline virtual void setSourceLine(unsigned sourceLineInfo)
+    {
+        sourceLine = sourceLineInfo;
+    }
+    inline virtual const unsigned getSourceLine() const
+    {
+        return sourceLine;
+    }
+
     const std::string valueOnlyToString() const;
 
 
@@ -292,6 +310,8 @@ protected:
     const SVFType* type; ///< SVF type
 
     std::string sourceLoc;  ///< Source code information of this value
+    std::string sourceFile; ///< Source file information of this value
+    unsigned sourceLine; ///< Source line information of this value
 
     /// Helper functions to check node kinds
     //{@ Check node kind

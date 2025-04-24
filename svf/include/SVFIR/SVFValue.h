@@ -212,6 +212,8 @@ protected:
     const SVFType* type;   ///< Type of this SVFValue
     std::string name;       ///< Short name of value for printing & debugging
     std::string sourceLoc;  ///< Source code information of this value
+    std::string sourceFile;
+    unsigned sourceLine;
     /// Constructor without name
     SVFValue(const SVFType* ty, SVFValKind k)
         : kind(k), ptrInUncalledFun(false),
@@ -281,7 +283,22 @@ public:
     {
         return sourceLoc;
     }
-
+    inline virtual void setSourceFile(const std::string& sourceFileInfo)
+    {
+        sourceFile = sourceFileInfo;
+    }
+    inline virtual const std::string getSourceFile() const
+    {
+        return sourceFile;
+    }
+    inline virtual void setSourceLine(unsigned sourceLineInfo)
+    {
+        sourceLine = sourceLineInfo;
+    }
+    inline virtual const unsigned getSourceLine() const
+    {
+        return sourceLine;
+    }
     /// Needs to be implemented by a SVF front end
     std::string toString() const;
 

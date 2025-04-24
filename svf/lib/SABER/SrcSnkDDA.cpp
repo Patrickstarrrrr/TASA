@@ -140,7 +140,9 @@ void SrcSnkDDA::analyze(SVFModule* module)
         Map<NodeID, Set<const BranchStmt*>> svfgNodeToBranches;
         Map<NodeID, Set<const BranchStmt*>> svfgNodeToBranches_PTIA;
         Map<NodeID, Set<const BranchStmt*>> svfgNodeToLoopBranches;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToNonLoopBranches;
         Map<NodeID, Set<const BranchStmt*>> svfgNodeToLoopBranches_PTIA;
+        Map<NodeID, Set<const BranchStmt*>> svfgNodeToNonLoopBranches_PTIA;
         
         // for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
         // Collect the bbs that are backward reachable from the input-unreachable-sinks.
@@ -273,11 +275,13 @@ void SrcSnkDDA::analyze(SVFModule* module)
             double total = 0;
             
             for (auto it : unreachableSinks) {
+                // for each unreachable sink, find the key branches
                 auto branches = svfgNodeToBranches.find(it);
-                int branchesNum = 0;
-                if (branches != svfgNodeToBranches.end()) {
-                    branchesNum = branches->second.size();
+                if (branches == svfgNodeToBranches.end())
+                {
+                    continue;
                 }
+                int branchesNum = branches->second.size();
                 if (max < branchesNum)
                 {
                     max = branchesNum;
@@ -288,19 +292,6 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 }
                 total += branchesNum;
             }
-            // for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
-            // {
-            //     if (max < it->second.size())
-            //     {
-            //         max = it->second.size();
-            //     }
-            //     if (min > it->second.size())
-            //     {
-            //         min = it->second.size();
-            //     }
-            //     total += it->second.size();
-            //     // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
-            // }
             double avg = total / unreachableSinks.count();
             std::cout << "Max Branches: " << max << "\n";
             std::cout << "Min Branches: " << min << "\n";
@@ -318,10 +309,11 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
             for (auto it : unreachableSinks) {
                 auto branches = svfgNodeToBranches_PTIA.find(it);
-                int branchesNum = 0;
-                if (branches != svfgNodeToBranches_PTIA.end()) {
-                    branchesNum = branches->second.size();
+                if (branches == svfgNodeToBranches_PTIA.end())
+                {
+                    continue;
                 }
+                int branchesNum = branches->second.size();
                 if (max_ptig < branchesNum)
                 {
                     max_ptig = branchesNum;
@@ -332,19 +324,6 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 }
                 total_ptig += branchesNum;
             }
-            // for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
-            // {
-            //     if (max_ptig < it->second.size())
-            //     {
-            //         max_ptig = it->second.size();
-            //     }
-            //     if (min_ptig > it->second.size())
-            //     {
-            //         min_ptig = it->second.size();
-            //     }
-            //     total_ptig += it->second.size();
-            //     // std::cout << "SVFGNode: " << it->first << " Branches: " << it->second.size() << "\n";
-            // }
             double avg_ptig = total_ptig / unreachableSinks.count();
             std::cout << "Max PTIG Branches: " << max_ptig << "\n";
             std::cout << "Min PTIG Branches: " << min_ptig << "\n";
@@ -379,6 +358,9 @@ void SrcSnkDDA::analyze(SVFModule* module)
                         svfgNodeToLoopBranches[it].insert(branch);
                         hasLoop = true;
                     }
+                    else {
+                        svfgNodeToNonLoopBranches[it].insert(branch);
+                    }
                 }
                 totalbranches = svfgNodeToBranches[it].size();
                 loopbranches = svfgNodeToLoopBranches[it].size();
@@ -393,6 +375,20 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 noGepInLoopSVFGNode++;
             }
             std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
+            if (!gepInLoop) {
+                std::cout << "LoopBranches:\n";
+                for (const BranchStmt* loopBranch: svfgNodeToLoopBranches[it])
+                {
+                    std::cout << loopBranch->getValue()->getSourceFile() << ":" << loopBranch->getValue()->getSourceLine() << "\n";
+                    std::cout << loopBranch->getValue()->getSourceLoc() << "\n";
+                }
+                std::cout << "NonLoopBranches:\n";
+                for (const BranchStmt* nonLoopBranch: svfgNodeToNonLoopBranches[it])
+                {
+                    std::cout << nonLoopBranch->getValue()->getSourceFile() << ":" << nonLoopBranch->getValue()->getSourceLine() << "\n";
+                    std::cout << nonLoopBranch->getValue()->getSourceLoc() << "\n";
+                }
+            }
         }
         // for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
         // {
@@ -441,6 +437,9 @@ void SrcSnkDDA::analyze(SVFModule* module)
                         svfgNodeToLoopBranches_PTIA[it].insert(branch);
                         hasLoop = true;
                     }
+                    else {
+                        svfgNodeToNonLoopBranches_PTIA[it].insert(branch);
+                    }
                 }
                 totalbranches = svfgNodeToBranches_PTIA[it].size();
                 loopbranches = svfgNodeToLoopBranches_PTIA[it].size();
@@ -454,6 +453,18 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 noGepInLoopSVFGNode_PTIG++;
             }
             std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
+            if (!gepInLoop) {
+                std::cout << "LoopBranches:\n";
+                for (const BranchStmt* loopBranch: svfgNodeToLoopBranches_PTIA[it])
+                {
+                    std::cout << loopBranch->getValue()->getSourceFile() << ":" << loopBranch->getValue()->getSourceLine() << "\n";
+                }
+                std::cout << "NonLoopBranches:\n";
+                for (const BranchStmt* nonLoopBranch: svfgNodeToNonLoopBranches_PTIA[it])
+                {
+                    std::cout << nonLoopBranch->getValue()->getSourceFile() << ":" << nonLoopBranch->getValue()->getSourceLine() << "\n";
+                }
+            }
         }
         std::cout << "No Loop Branch SVFGNode Num:" << noLoopSVFGNode_PTIG << "\n";
         std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode_PTIG << "\n";
