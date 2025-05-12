@@ -256,6 +256,10 @@ public:
     static const Option<bool> FileCheck;
     /// double free checker, Default: false
     static const Option<bool> DFreeCheck;
+    /// uaf checker, Default: false
+    static const Option<bool> UAFCheck;
+    /// npd checker, Default: false
+    static const Option<bool> NPDCheck;
     /// data race checker, Default: false
     static const Option<bool> RaceCheck;
     /// if the access index of gepstmt is unknown, skip it, Default: false

@@ -103,6 +103,7 @@ public:
     // typedef NodeBS ReachableSet;
     // Map<NodeID, NodeBS> reachableMap;
     NodeBS reachableSet;
+    NodeBS inputReachableSet;
     NodeBS backwardReachableSet;
     NodeBS inputNodeSet;
     std::vector<std::pair<NodeID, NodeID>> dfSet;

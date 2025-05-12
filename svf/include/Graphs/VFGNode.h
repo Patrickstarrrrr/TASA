@@ -31,6 +31,7 @@
 #define INCLUDE_UTIL_VFGNODE_H_
 
 #include "Graphs/GenericGraph.h"
+#include "Graphs/IRGraph.h"
 #include "Graphs/SVFGEdge.h"
 #include "Graphs/ICFGNode.h"
 #include "SVFIR/SVFIR.h"
@@ -857,6 +858,10 @@ public:
     inline bool isPTANode() const
     {
         return param->isPointer();
+    }
+    virtual inline const PAGNode* getParm() const
+    {
+        return param;
     }
 
     /// Methods for support type inquiry through isa, cast, and dyn_cast:

@@ -37,6 +37,7 @@
 #ifndef SRCSNKANALYSIS_H_
 #define SRCSNKANALYSIS_H_
 
+#include "Graphs/IRGraph.h"
 #include "Graphs/SVFGOPT.h"
 #include "SABER/ProgSlice.h"
 #include "SABER/SaberSVFGBuilder.h"
@@ -126,6 +127,10 @@ public:
     }
 
     /// Get SVFG
+    inline SVFG* getSVFG()
+    {
+        return svfg;
+    }
     inline const SVFG* getSVFG() const
     {
         return graph();
@@ -243,6 +248,15 @@ public:
     inline void addSinkToPAGNodeMap(const SVFGNode* sink, const PAGNode* pagNode)
     {
         sinkToPAGNodeMap[sink->getId()] = pagNode->getId();
+    }
+    public:
+    inline const PAGNode* getPAGNodeBySink(const SVFGNode* sink) const
+    {
+        SinkToPAGNodeMap::const_iterator it = sinkToPAGNodeMap.find(sink->getId());
+        if(it != sinkToPAGNodeMap.end())
+            return getPAG()->getGNode((it->second));
+        else
+            return nullptr;
     }
     //@}
 

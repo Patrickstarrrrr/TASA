@@ -171,7 +171,9 @@ public:
     bool AllPathReachableSolve();
     bool isSatisfiableForAll();
     bool isSatisfiableForPairs();
-
+    bool isSatisfiableForSinkToUser();
+    bool isSatisfiableForSomeSinks();
+    
     /// Get callsite ID and get returnsiteID from SVFGEdge
     //@{
     const CallICFGNode* getCallSite(const SVFGEdge* edge) const;

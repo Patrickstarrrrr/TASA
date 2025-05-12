@@ -28,7 +28,9 @@
  */
 
 #include "SABER/ProgSlice.h"
+#include "Graphs/IRGraph.h"
 #include "Graphs/SVFG.h"
+#include "Graphs/VFGNode.h"
 #include "SABER/LeakChecker.h"
 #include "SVFIR/SVFValue.h"
 #include "Util/Casting.h"
@@ -249,6 +251,194 @@ bool ProgSlice::isSatisfiableForPairs()
         }
     }
 
+    return ret;
+}
+
+/*!
+ * Solve by analysing each sink to user (e.g., UAF)
+ */
+ bool ProgSlice::isSatisfiableForSinkToUser()
+ {
+    bool ret = true;
+    for(SVFGNodeSetIter sinkit = sinksBegin(), sinkeit = sinksEnd(); sinkit!= sinkeit; ++sinkit)
+    {
+        const SVFGNode* sinknode = *sinkit;
+        const PAGNode* sinkpagnode = ssDDA->getPAGNodeBySink(sinknode);
+        if (sinkpagnode == nullptr)
+            continue;
+        ssDDA->getSVFG()->backwardReachableSet.clear();
+        ssDDA->getSVFG()->computeBackwardReachableNodesByID(sinknode->getId());
+        for (auto useit = this->forwardSliceBegin(), useeit = this->forwardSliceEnd(); useit != useeit; ++useit)
+        {
+            // svfg->reachableSet.clear();
+            // svfg->computeReachableNodesByID(sinknode->getId());
+            const SVFGNode* node = *useit;
+            if ((ssDDA->getSVFG()->backwardReachableSet.test(node->getId())))
+                continue; // backreachable from sink
+            if (*useit == *sinkit)
+                continue;
+            const PAGNode* usepointer = nullptr;
+            if (auto loaduse = SVFUtil::dyn_cast<LoadSVFGNode>(node))
+            {
+                usepointer = loaduse->getPAGSrcNode();
+            }
+            else if (auto storeuse = SVFUtil::dyn_cast<StoreSVFGNode>(node))
+            {
+                usepointer = storeuse->getPAGDstNode();
+            }
+            else if (auto gepuse = SVFUtil::dyn_cast<GepSVFGNode>(node))
+            {
+                usepointer = gepuse->getPAGSrcNode();
+            }
+            else if (auto copyuse = SVFUtil::dyn_cast<CopySVFGNode>(node))
+            {
+                usepointer = copyuse->getPAGSrcNode();
+            }
+            else if (auto phiuse = SVFUtil::dyn_cast<PHISVFGNode>(node))
+            {
+                usepointer = phiuse->getRes();
+            }
+            else if (auto addruse = SVFUtil::dyn_cast<AddrVFGNode>(node))
+            {
+                usepointer = addruse->getPAGDstNode();
+            }
+            else if (auto paramuse = SVFUtil::dyn_cast<ArgumentVFGNode>(node))
+            {
+                usepointer = paramuse->getParm();
+            }
+            if (usepointer == nullptr)
+                continue;
+            if(!(ssDDA->getSVFG()->getPTA()->alias(usepointer->getId(), sinkpagnode->getId())))
+                continue;
+            Condition guard = condAnd(getVFCond(sinknode),getVFCond(*useit));
+            if(!isEquivalentBranchCond(guard, getFalseCond()))
+            {
+                setFinalCond(guard);
+                const SVFGNode* src = *sinkit;
+                const SVFGNode* dst = *useit;
+                auto dda = (LeakChecker*)(ssDDA);
+                // if (Options::PrintDFBugSinkInfo())
+                // {
+                //     std::cout << "sink at : (" 
+                //         << dda->getSnkCSID(src)->getSourceLoc()
+                //         << ")\n";
+                //     std::cout << "use at : (" 
+                //         // << dda->getSnkCSID(dst)->getSourceLoc()
+                //         << usepointer->getSourceLoc()
+                //         << ")\n";
+                // }
+                if (Options::ComputeInputReachable())
+                {
+                    const SVFValue* srcvalue = src->getValue();
+                    const SVFValue* dstvalue = dst->getValue();
+                    const std::string srcloc = srcvalue->getSourceLoc();
+                    const std::string dstloc = dstvalue->getSourceLoc();
+                    NodeID srcid = (*sinkit)->getId();
+                    NodeID dstid = (*useit)->getId();
+                    bool srcReach = ssDDA->getSVFG()->reachableSet.test(srcid);
+                    bool dstReach = ssDDA->getSVFG()->reachableSet.test(dstid);
+                    if (srcReach && dstReach) {
+                        inputsReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Both Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else if (srcReach) {
+                        inputsHalfReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "First Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else if (dstReach) {
+                        inputsHalfReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Second Reachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else {
+                        inputsUnreachableBugs++;
+                        if (Options::BranchBBInfo()) {
+                            dda->unreachableSinks.set(srcid);
+                            dda->unreachableSinks.set(dstid);
+                        }
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Both Unreachable : (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                }
+                bugnum++;
+                // return false;
+                ret = false;
+            }
+        }
+    }
+ 
+    return ret;
+}
+/*!
+ * Solve by analysing each sink to user (e.g., UAF)
+ */
+ bool ProgSlice::isSatisfiableForSomeSinks()
+ {
+    bool ret = true;
+    for(SVFGNodeSetIter sinkit = sinksBegin(), sinkeit = sinksEnd(); sinkit!= sinkeit; ++sinkit)
+    {
+        const SVFGNode* sinknode = *sinkit;
+        // const PAGNode* sinkpagnode = ssDDA->getPAGNodeBySink(sinknode);
+        // if (sinkpagnode == nullptr)
+        //     continue;
+        Condition guard = getVFCond(sinknode);
+        if (!isEquivalentBranchCond(guard, getFalseCond()))
+        {
+            setFinalCond(guard);
+            // const SVFGNode* dst = *useit;
+            auto dda = (LeakChecker*)(ssDDA);
+            if (Options::ComputeInputReachable())
+            {
+                const SVFValue* srcvalue = sinknode->getValue();
+                const std::string srcloc = srcvalue->getSourceLoc();
+                NodeID srcid = (*sinkit)->getId();
+                bool srcReach = ssDDA->getSVFG()->reachableSet.test(srcid);
+                if (srcReach) {
+                    inputsReachableBugs++;
+                    if (Options::PrintDFBugSinkInfo())
+                    {
+                        std::cout << "Input Reachable : (" 
+                        << srcid << " at : [" << srcloc  << "]\n";
+                    }
+                }
+                else {
+                    inputsUnreachableBugs++;
+                    if (Options::BranchBBInfo()) {
+                        dda->unreachableSinks.set(srcid);
+                    }
+                    if (Options::PrintDFBugSinkInfo())
+                    {
+                        std::cout << "Input Unreachable : (" 
+                        << srcid << " at : [" << srcloc  << "]\n";
+                    }
+                }
+            }
+            bugnum++;
+            ret = false;
+        }
+    }
     return ret;
 }
 

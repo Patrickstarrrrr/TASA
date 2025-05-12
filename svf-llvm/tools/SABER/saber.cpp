@@ -26,14 +26,17 @@
  // Author: Yulei Sui,
  */
 
+#include "SABER/NPDChecker.h"
 #include "SVF-LLVM/LLVMUtil.h"
 #include "SVF-LLVM/SVFIRBuilder.h"
 #include "SABER/LeakChecker.h"
 #include "SABER/FileChecker.h"
 #include "SABER/DoubleFreeChecker.h"
+#include "SABER/UAFChecker.h"
 #include "Util/CommandLine.h"
 #include "Util/Options.h"
 #include "Util/Z3Expr.h"
+#include <memory>
 
 
 using namespace llvm;
@@ -65,6 +68,10 @@ int main(int argc, char ** argv)
         saber = std::make_unique<FileChecker>();
     else if(Options::DFreeCheck())
         saber = std::make_unique<DoubleFreeChecker>();
+    else if(Options::UAFCheck())
+        saber = std::make_unique<UAFChecker>();
+    else if(Options::NPDCheck())
+        saber = std::make_unique<NPDChecker>();
     else
         saber = std::make_unique<LeakChecker>();  // if no checker is specified, we use leak checker as the default one.
 

@@ -799,7 +799,10 @@ const Option<bool> Options::RunUncallFuncs(
     "run-uncall-fun","Skip Gep Unknown Index",false);
 const Option<bool> Options::ICFGMergeAdjacentNodes(
     "icfg-merge-adjnodes","ICFG Simplification - Merge Adjacent Nodes in the Same Basic Block.",false);
-
+const Option<bool> Options::UAFCheck(
+    "uaf", "Use After Free Detection",false);
+const Option<bool> Options::NPDCheck(
+    "npd", "Null Pointer Dereference Detection",false);
 
 const Option<u32_t> Options::AEPrecision(
     "precision",

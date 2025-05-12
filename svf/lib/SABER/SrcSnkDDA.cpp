@@ -115,21 +115,21 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
         reportBug(getCurSlice());
     }
-    if (Options::ComputeInputReachable() && Options::DFreeCheck())
+    if (Options::ComputeInputReachable() && (Options::DFreeCheck() || Options::UAFCheck() || Options::NPDCheck()) && _curSlice != nullptr)
     {
-        std::cout << "Total DF Bugs:" << _curSlice->bugnum << "\n";
-        std::cout << "Input Unreachable DF Bugs:" << _curSlice->inputsUnreachableBugs << "\n";
-        unsigned unreachableSinks = 0;
+        std::cout << "Total Bugs:" << _curSlice->bugnum << "\n";
+        std::cout << "Input Unreachable Bugs:" << _curSlice->inputsUnreachableBugs << "\n";
+        unsigned unreachableSinkNum = 0;
         for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
         {
             const SVFGNode* sink = *it;
-            if (svfg->reachableSet.test(sink->getId()))
+            if (!(svfg->inputReachableSet.test(sink->getId())))
             {
-                unreachableSinks++; // TODO: Fix it!
+                unreachableSinkNum++; 
             }
         }
         std::cout << "Total Sinks:" << getSinks().size() << "\n";
-        std::cout << "Input Unreachable Sinks:" << unreachableSinks << "\n";
+        std::cout << "Input Unreachable Sinks:" << unreachableSinkNum << "\n";
     }
     if (Options::BranchBBInfo())
     {
@@ -380,13 +380,13 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 for (const BranchStmt* loopBranch: svfgNodeToLoopBranches[it])
                 {
                     std::cout << loopBranch->getValue()->getSourceFile() << ":" << loopBranch->getValue()->getSourceLine() << "\n";
-                    std::cout << loopBranch->getValue()->getSourceLoc() << "\n";
+                    // std::cout << loopBranch->getValue()->getSourceLoc() << "\n";
                 }
                 std::cout << "NonLoopBranches:\n";
                 for (const BranchStmt* nonLoopBranch: svfgNodeToNonLoopBranches[it])
                 {
                     std::cout << nonLoopBranch->getValue()->getSourceFile() << ":" << nonLoopBranch->getValue()->getSourceLine() << "\n";
-                    std::cout << nonLoopBranch->getValue()->getSourceLoc() << "\n";
+                    // std::cout << nonLoopBranch->getValue()->getSourceLoc() << "\n";
                 }
             }
         }
