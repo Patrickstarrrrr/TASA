@@ -37,6 +37,7 @@
 #include "Graphs/ICFG.h"
 #include "Util/Options.h"
 #include "MemoryModel/PointerAnalysisImpl.h"
+#include <cstddef>
 #include <fstream>
 #include "Util/Options.h"
 #include "Util/ThreadAPI.h"
@@ -816,7 +817,7 @@ void SVFG::initInputNodeSet()
         if (fun->getName() == "scanf") {
             auto acParms = callsites->getActualParms();
             int firstInputID = 1;
-            for (int i = firstInputID; i < acParms.size(); ++i) 
+            for (size_t i = firstInputID; i < acParms.size(); ++i) 
             {
                 const SVFVar* inputVar = acParms[i];
                 inputVarSet.insert(inputVar);
@@ -825,7 +826,7 @@ void SVFG::initInputNodeSet()
         else if (fun->getName() == "sscanf" || fun->getName() == "fscanf") {
             auto acParms = callsites->getActualParms();
             int firstInputID = 2;
-            for (int i = firstInputID; i < acParms.size(); ++i) 
+            for (size_t i = firstInputID; i < acParms.size(); ++i) 
             {
                 const SVFVar* inputVar = acParms[i];
                 inputVarSet.insert(inputVar);
