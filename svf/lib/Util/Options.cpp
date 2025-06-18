@@ -829,4 +829,10 @@ const Option<bool> Options::BranchBBInfo(
 const Option<bool> Options::SVFGVariableName(
     "svfg-variable-name","Print the variable name in SVFG",false
 );
+
+const Option<bool> Options::EnablePTIG(
+    "enable-ptig", "Enable PTIG for SVFG",
+    true
+);
+
 } // namespace SVF.

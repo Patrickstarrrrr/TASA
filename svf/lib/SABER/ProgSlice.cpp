@@ -73,6 +73,10 @@ bool ProgSlice::AllPathReachableSolve()
                 Condition vfCond;
                 const SVFBasicBlock* nodeBB = getSVFGNodeBB(node);
                 const SVFBasicBlock* succBB = getSVFGNodeBB(succ);
+                if (nodeBB == nullptr || succBB == nullptr)
+                {
+                    continue;
+                }
                 /// clean up the control flow conditions for next round guard computation
                 clearCFCond();
 

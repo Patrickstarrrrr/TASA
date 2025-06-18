@@ -243,6 +243,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
         for (auto branchStmt : svfg->getPAG()->getSVFStmtSet(SVFStmt::Branch))
         {
             const BranchStmt* branch = SVFUtil::cast<BranchStmt>(branchStmt);
+            if (branch->isUnconditional())
+            {
+                continue;
+            }
             auto succAndCondPairVec = branch->getSuccessors();
             for (auto succAndCondPair: succAndCondPairVec)
             {
