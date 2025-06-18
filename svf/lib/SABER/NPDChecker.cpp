@@ -17,7 +17,7 @@ void NPDChecker::initSrcs()
         for (auto it = n->OutEdgeBegin(), eit = n->OutEdgeEnd(); it != eit; ++it)
         {
             const SVFGNode* node = (*it)->getDstNode();
-            if (auto store = SVFUtil::dyn_cast<StoreSVFGNode>(node))
+            if (SVFUtil::isa<StoreSVFGNode>(node))
             {
                 addToSources(node);
                 addSrcToCSID(node, nullptr);
