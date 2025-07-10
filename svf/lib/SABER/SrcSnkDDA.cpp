@@ -28,6 +28,9 @@
  */
 
 
+#include "Graphs/ICFG.h"
+#include "Graphs/ICFGNode.h"
+#include "MSSA/SVFGBuilder.h"
 #include "Util/Options.h"
 #include "Graphs/IRGraph.h"
 #include "Graphs/SVFG.h"
@@ -42,6 +45,10 @@
 #include "WPA/Andersen.h"
 #include "Graphs/PTIG.h"
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -271,41 +278,43 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         std::cout << "Collect Branch end\n";
         
-       if (svfgNodeToBranches.size() != 0)
-        {
-            
-            double max = svfgNodeToBranches.begin()->second.size();
-            double min = svfgNodeToBranches.begin()->second.size(); 
-            double total = 0;
-            
-            for (auto it : unreachableSinks) {
-                // for each unreachable sink, find the key branches
-                auto branches = svfgNodeToBranches.find(it);
-                if (branches == svfgNodeToBranches.end())
-                {
-                    continue;
+        if (!Options::EnablePTIG()) {
+            if (svfgNodeToBranches.size() != 0)
+            {
+                
+                double max = svfgNodeToBranches.begin()->second.size();
+                double min = svfgNodeToBranches.begin()->second.size(); 
+                double total = 0;
+                
+                for (auto it : unreachableSinks) {
+                    // for each unreachable sink, find the key branches
+                    auto branches = svfgNodeToBranches.find(it);
+                    if (branches == svfgNodeToBranches.end())
+                    {
+                        continue;
+                    }
+                    int branchesNum = branches->second.size();
+                    if (max < branchesNum)
+                    {
+                        max = branchesNum;
+                    }
+                    if (min > branchesNum)
+                    {
+                        min = branchesNum;
+                    }
+                    total += branchesNum;
                 }
-                int branchesNum = branches->second.size();
-                if (max < branchesNum)
-                {
-                    max = branchesNum;
-                }
-                if (min > branchesNum)
-                {
-                    min = branchesNum;
-                }
-                total += branchesNum;
+                double avg = total / unreachableSinks.count();
+                std::cout << "Max Branches: " << max << "\n";
+                std::cout << "Min Branches: " << min << "\n";
+                std::cout << "Total Branches: " << total << "\n";
+                std::cout << "Avg Branches: " << avg << "\n";
+                std::cout << "*********************\n";
+            } else {
+                std::cout << "svfgNodeToBranches.size() == 0!\n";
             }
-            double avg = total / unreachableSinks.count();
-            std::cout << "Max Branches: " << max << "\n";
-            std::cout << "Min Branches: " << min << "\n";
-            std::cout << "Total Branches: " << total << "\n";
-            std::cout << "Avg Branches: " << avg << "\n";
-            std::cout << "*********************\n";
-        } else {
-            std::cout << "svfgNodeToBranches.size() == 0!\n";
         }
-
+        
         if (svfgNodeToBranches_PTIA.size() != 0) {
             double max_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
             double min_ptig = svfgNodeToBranches_PTIA.begin()->second.size();
@@ -339,85 +348,68 @@ void SrcSnkDDA::analyze(SVFModule* module)
             std::cout << "svfgNodeToBranches_PTIA.size() == 0!\n";
         }
 
-        float noLoopSVFGNode = 0;
-        float noGepInLoopSVFGNode = 0;
-        for (auto it : unreachableSinks) {
-            bool hasLoop = false;
-            bool gepInLoop = false;
-            unsigned totalbranches = 0;
-            unsigned loopbranches = 0;
-            if (gepInLoopSinks.test(it)) {
-                gepInLoop = true;
-            }
-            auto branches = svfgNodeToBranches.find(it);
-            if (branches != svfgNodeToBranches.end())
-            {
-                for (auto branchit = branches->second.begin(), ebranchit = branches->second.end(); branchit != ebranchit; ++branchit)
+        if (!Options::EnablePTIG()) {
+            float noLoopSVFGNode = 0;
+            float noGepInLoopSVFGNode = 0;
+            for (auto it : unreachableSinks) {
+                bool hasLoop = false;
+                bool gepInLoop = false;
+                unsigned totalbranches = 0;
+                unsigned loopbranches = 0;
+                if (gepInLoopSinks.test(it)) {
+                    gepInLoop = true;
+                }
+                auto branches = svfgNodeToBranches.find(it);
+                if (branches != svfgNodeToBranches.end())
                 {
-                    const BranchStmt* branch = *branchit;
-                    const SVFBasicBlock* bb = branch->getBB();
-                    
-                    if (bb->getParent()->isLoopHeader(bb))
+                    for (auto branchit = branches->second.begin(), ebranchit = branches->second.end(); branchit != ebranchit; ++branchit)
                     {
-                        svfgNodeToLoopBranches[it].insert(branch);
-                        hasLoop = true;
+                        const BranchStmt* branch = *branchit;
+                        const SVFBasicBlock* bb = branch->getBB();
+                        
+                        if (bb->getParent()->isLoopHeader(bb))
+                        {
+                            svfgNodeToLoopBranches[it].insert(branch);
+                            hasLoop = true;
+                        }
+                        else {
+                            svfgNodeToNonLoopBranches[it].insert(branch);
+                        }
                     }
-                    else {
-                        svfgNodeToNonLoopBranches[it].insert(branch);
+                    totalbranches = svfgNodeToBranches[it].size();
+                    loopbranches = svfgNodeToLoopBranches[it].size();
+                }
+
+                if (!hasLoop)
+                {
+                    noLoopSVFGNode++;
+                }
+                if (!gepInLoop)
+                {
+                    noGepInLoopSVFGNode++;
+                }
+                std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
+                if (!gepInLoop) {
+                    std::cout << "LoopBranches:\n";
+                    for (const BranchStmt* loopBranch: svfgNodeToLoopBranches[it])
+                    {
+                        std::cout << loopBranch->getValue()->getSourceFile() << ":" << loopBranch->getValue()->getSourceLine() << "\n";
+                        // std::cout << loopBranch->getValue()->getSourceLoc() << "\n";
+                    }
+                    std::cout << "NonLoopBranches:\n";
+                    for (const BranchStmt* nonLoopBranch: svfgNodeToNonLoopBranches[it])
+                    {
+                        std::cout << nonLoopBranch->getValue()->getSourceFile() << ":" << nonLoopBranch->getValue()->getSourceLine() << "\n";
+                        // std::cout << nonLoopBranch->getValue()->getSourceLoc() << "\n";
                     }
                 }
-                totalbranches = svfgNodeToBranches[it].size();
-                loopbranches = svfgNodeToLoopBranches[it].size();
             }
 
-            if (!hasLoop)
-            {
-                noLoopSVFGNode++;
-            }
-            if (!gepInLoop)
-            {
-                noGepInLoopSVFGNode++;
-            }
-            std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
-            if (!gepInLoop) {
-                std::cout << "LoopBranches:\n";
-                for (const BranchStmt* loopBranch: svfgNodeToLoopBranches[it])
-                {
-                    std::cout << loopBranch->getValue()->getSourceFile() << ":" << loopBranch->getValue()->getSourceLine() << "\n";
-                    // std::cout << loopBranch->getValue()->getSourceLoc() << "\n";
-                }
-                std::cout << "NonLoopBranches:\n";
-                for (const BranchStmt* nonLoopBranch: svfgNodeToNonLoopBranches[it])
-                {
-                    std::cout << nonLoopBranch->getValue()->getSourceFile() << ":" << nonLoopBranch->getValue()->getSourceLine() << "\n";
-                    // std::cout << nonLoopBranch->getValue()->getSourceLoc() << "\n";
-                }
-            }
+
+            std::cout << "No Loop Branch SVFGNode Num:" << noLoopSVFGNode << "\n";
+            std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode << "\n";
+            std::cout << "*********************\n";
         }
-        // for (auto it = svfgNodeToBranches.begin(), eit = svfgNodeToBranches.end(); it != eit; ++it)
-        // {
-        //     bool hasLoop = false;
-        //     for (auto branchit = it->second.begin(), ebranchit = it->second.end(); branchit != ebranchit; ++branchit)
-        //     {
-        //         const BranchStmt* branch = *branchit;
-        //         const SVFBasicBlock* bb = branch->getBB();
-                
-        //         if (bb->getParent()->isLoopHeader(bb))
-        //         {
-        //             svfgNodeToLoopBranches[it->first].insert(branch);
-        //             hasLoop = true;
-        //         }
-        //     }
-        //     if (!hasLoop)
-        //     {
-        //         noLoopSVFGNode++;
-        //     }
-        //     std::cout <<  (hasLoop ? "[L]":"[X]") << " SVFGNode: " << it->first << "Total Branches: " << svfgNodeToBranches[it->first].size() << " LoopBranches: " << svfgNodeToLoopBranches[it->first].size() << "\n";
-        // }
-
-        std::cout << "No Loop Branch SVFGNode Num:" << noLoopSVFGNode << "\n";
-        std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode << "\n";
-        std::cout << "*********************\n";
 
         float noLoopSVFGNode_PTIG = 0;
         float noGepInLoopSVFGNode_PTIG = 0;
@@ -474,28 +466,15 @@ void SrcSnkDDA::analyze(SVFModule* module)
         std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode_PTIG << "\n";
         std::cout << "*********************\n";
                     
-        // for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
-        // {
-        //     bool hasLoop = false;
-        //     for (auto branchit = it->second.begin(), ebranchit = it->second.end(); branchit != ebranchit; ++branchit)
-        //     {
-        //         const BranchStmt* branch = *branchit;
-        //         const SVFBasicBlock* bb = branch->getBB();
-                
-        //         if (bb->getParent()->isLoopHeader(bb))
-        //         {
-        //             svfgNodeToLoopBranches_PTIA[it->first].insert(branch);
-        //             hasLoop = true;
-        //         }
-        //     }
-        //     if (!hasLoop)
-        //     {
-        //         noLoopSVFGNode_PTIG++;
-        //     }
-        //     std::cout <<  (hasLoop ? "[L]":"[X]") << " SVFGNode: " << it->first << "Total Branches: " << svfgNodeToBranches_PTIA[it->first].size() << " LoopBranches: " << svfgNodeToLoopBranches_PTIA[it->first].size() << "\n";
-        // }
-
-        // std::cout <<  "No Loop Branch SVFGNode Num PTIG:" << noLoopSVFGNode_PTIG << "\n";
+        // Compute branch conflict
+        
+        for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
+        {
+            keyBranches.insert(it->second.begin(), it->second.end());
+        }
+        
+        buildBVConflictMap();
+        printBVConflictMap();
     }
 
     finalize();
@@ -705,4 +684,95 @@ void SrcSnkDDA::printZ3Stat()
 
     outs() << "Z3 Mem usage: " << getSaberCondAllocator()->getMemUsage() << "\n";
     outs() << "Z3 Number: " << getSaberCondAllocator()->getCondNum() << "\n";
+}
+
+// Reachable set computation with cycle-safe memoization
+SrcSnkDDA::BBSet SrcSnkDDA::computeReachableBBs(const SVFBasicBlock* bb)
+{
+    if (reachCache.count(bb))
+    {
+        return reachCache[bb];
+    }
+
+    reachCache[bb] = {bb};
+    for (const SVFBasicBlock* succ: bb->getSuccessors())
+    {
+        SrcSnkDDA::BBSet succReachable = computeReachableBBs(succ);
+        reachCache[bb].insert(succReachable.begin(), succReachable.end());
+    }
+
+    return reachCache[bb];
+}
+
+bool SrcSnkDDA::containsBranch(BBSet& reachableBBs, const BranchStmt* branch)
+{
+    if (keyBranches.find(branch) == keyBranches.end())
+    {
+        return false;
+    }
+    for (const SVFBasicBlock* bb : reachableBBs)
+    {
+        if (branch->getBB() == bb)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SrcSnkDDA::buildBVConflictMap()
+{
+    std::vector<BranchValue> keyBVs;
+    for (const BranchStmt* branch : keyBranches)
+    {
+        // branch->getEdgeID()
+        for (u32_t i = 0; i < branch->getSuccessors().size(); ++i)
+        {
+            BranchValue bv = {branch, i == 0}; // true for first successor, false for second // TODO: switch stmt
+            const SVFBasicBlock* bb = branch->getSuccessor(i)->getBB();
+            bv2ReachableBBsMap[bv] = computeReachableBBs(bb);
+            keyBVs.push_back(bv);
+            bvConflictMap[bv] = {}; // Initialize the conflict set for this branch value
+        }
+    }
+    
+    for (size_t i = 0; i < keyBVs.size(); ++i)
+    {
+        const BranchValue& bv1 = keyBVs[i];
+        BBSet& bv1ReachableBBs = bv2ReachableBBsMap[bv1];
+        for (size_t j = i + 1; j < keyBVs.size(); ++j)
+        {
+            const BranchValue& bv2 = keyBVs[j];
+            BBSet& bv2ReachableBBs = bv2ReachableBBsMap[bv2];
+            // if (bv1.first == bv2.first && bv1.second != bv2.second) // Same branch, different successors
+            // {
+                // Check if they conflict
+            if (bv1.first == bv2.first) continue; // Skip if they are the same branch
+            if (!containsBranch(bv1ReachableBBs, bv2.first) &&  !containsBranch(bv2ReachableBBs, bv1.first))
+            {
+                bvConflictMap[bv1].insert(bv2);
+                bvConflictMap[bv2].insert(bv1);
+            }
+            // }
+        }
+    }
+}
+
+void SrcSnkDDA::printBVConflictMap() const
+{
+    outs() << "========== Branch Value Conflict Map ==========\n";
+    for (const auto& pair : bvConflictMap)
+    {
+        const BranchValue& bv = pair.first;
+        const BVSet& conflicts = pair.second;
+        if (conflicts.empty())
+            continue; // Skip if there are no conflicts
+        outs() << "Branch: " << bv.first->getValue()->getSourceFile() << ":" << bv.first->getValue()->getSourceLine()
+               << " (" << (bv.second ? "T" : "F") << ") has conflicts with:\n";
+        for (const BranchValue& conflict : conflicts)
+        {
+            outs() << "  - " << conflict.first->getValue()->getSourceFile() << ":" << conflict.first->getValue()->getSourceLine()
+                   << " (" << (conflict.second ? "T" : "F") << ")\n";
+        }
+    }
 }

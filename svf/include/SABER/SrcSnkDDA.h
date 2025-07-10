@@ -41,9 +41,20 @@
 #include "Graphs/SVFGOPT.h"
 #include "SABER/ProgSlice.h"
 #include "SABER/SaberSVFGBuilder.h"
+#include "SVFIR/SVFValue.h"
 #include "Util/GeneralType.h"
 #include "Util/GraphReachSolver.h"
 #include "Util/SVFBugReport.h"
+#include <unordered_map>
+
+namespace std {
+    template<>
+    struct hash<std::pair<const SVF::BranchStmt*, unsigned>> {
+        size_t operator()(const std::pair<const SVF::BranchStmt*, unsigned>& p) const {
+            return std::hash<const void*>()(static_cast<const void*>(p.first)) ^ std::hash<unsigned>()(p.second << 1);
+        }
+    };
+}
 
 namespace SVF
 {
@@ -67,6 +78,8 @@ public:
     typedef NodeBS SVFGNodeBS;
     typedef ProgSlice::VFWorkList WorkList;
     typedef Map<NodeID, NodeID> SinkToPAGNodeMap;
+
+
 private:
     ProgSlice* _curSlice;		/// current program slice
     SVFGNodeSet sources;		/// source nodes
@@ -82,6 +95,7 @@ protected:
     SVFG* svfg;
     PTACallGraph* callgraph;
     SVFBugReport report; /// Bug Reporter
+
 
 public:
 
@@ -346,8 +360,33 @@ protected:
     public:
     NodeBS unreachableSinks;
 
+    
+
+    typedef std::pair<const BranchStmt*, u32_t> BranchValue;
+    typedef std::unordered_map<const SVFBasicBlock*, std::unordered_set<const SVFBasicBlock*>> BB2BBSetMap;
+    typedef std::unordered_set<const SVFBasicBlock*> BBSet;
+    typedef std::unordered_set<BranchValue> BVSet;
+    typedef std::unordered_map<BranchValue, BVSet> BVConflictMap;
+    typedef std::unordered_map<BranchValue, BBSet> BV2ReachableBBsMap;
+
+    BVConflictMap bvConflictMap;
+    BV2ReachableBBsMap bv2ReachableBBsMap;
+    std::unordered_set<const BranchStmt*> keyBranches;
+    ICFG* icfg;
+    BB2BBSetMap reachCache;
+
+    // Reachable set computation with cycle-safe memoization
+    BBSet computeReachableBBs(const SVFBasicBlock* bb);
+
+    bool containsBranch(BBSet& reachableBBs, const BranchStmt* branch);
+    
+    void buildBVConflictMap();
+
+    void printBVConflictMap() const;
 };
 
 } // End namespace SVF
+
+
 
 #endif /* SRCSNKANALYSIS_H_ */
