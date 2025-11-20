@@ -301,6 +301,42 @@ private:
         return it->second;
     }
 
+public:
+    inline int getBackwardSliceBranchNum(const ICFGNode* seed)
+    {
+        int branchNum = 0;
+        std::unordered_set<const ICFGNode*> slice;
+        std::stack<const ICFGNode*> work;
+
+        slice.insert(seed);
+        work.push(seed);
+        while(!work.empty()) {
+            const ICFGNode* cur = work.top();
+            work.pop();
+
+            // iterate over incoming edges
+            for (auto it = cur->InEdgeBegin(); it != cur->InEdgeEnd(); ++it) {
+                auto* e = *it;
+                auto* src = e->getSrcNode();
+
+                if (!slice.count(src)) {
+                    slice.insert(src);
+                    work.push(src);
+                }
+            }
+        }
+
+        // auto backwardSet = this->getBackwardSlice(seed->getId());
+        for (auto slicenode : slice)
+        {
+            if (slicenode->getInEdges().size() > 1)
+            {
+                branchNum++;
+            }
+        }
+        return branchNum;
+    }
+
 };
 
 } // End namespace SVF

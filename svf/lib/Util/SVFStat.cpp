@@ -63,6 +63,13 @@ double SVFStat::getClk(bool mark)
     abort();
 }
 
+double SVFStat::myClk()
+{
+    struct timespec time;
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    return (double)(time.tv_nsec + time.tv_sec * 1000000000) / 1000000.0;
+}
+
 void SVFStat::printStat(string statname)
 {
 

@@ -721,6 +721,39 @@ protected:
 public:
     u32_t edgeNum;		///< total num of node
     u32_t nodeNum;		///< total num of edge
+
+    public:
+
+    // backward slice: given a start node ID, return the slice set of IDs
+    inline std::unordered_set<NodeID> getBackwardSlice(NodeID seed) const
+    {
+        std::unordered_set<NodeID> slice;
+        std::stack<NodeType*> work;
+
+        NodeType* start = getGNode(seed);
+        slice.insert(seed);
+        work.push(start);
+
+        while(!work.empty()) {
+            NodeType* cur = work.top();
+            work.pop();
+
+            // iterate over incoming edges
+            for (auto it = cur->InEdgeBegin(); it != cur->InEdgeEnd(); ++it) {
+                EdgeType* e = *it;
+                NodeType* src = e->getSrcNode();
+                NodeID sid = src->getId();
+
+                if (!slice.count(sid)) {
+                    slice.insert(sid);
+                    work.push(src);
+                }
+            }
+        }
+
+        return slice;
+    }
+
 };
 
 } // End namespace SVF

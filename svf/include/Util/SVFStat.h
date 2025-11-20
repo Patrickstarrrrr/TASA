@@ -70,6 +70,7 @@ public:
     /// Default call for getClk is unmarked, while MarkedClocksOnly is false by default.
     static double getClk(bool mark = false);
 
+    static double myClk();
     /// SVF's general statistics are only printed once even if you run multiple anayses
     static bool printGeneralStats;
 
