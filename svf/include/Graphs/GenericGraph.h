@@ -300,6 +300,14 @@ public:
     {
         return sourceLine;
     }
+    inline virtual void setVariableName(const std::string& varName)
+    {
+        variableName = varName;
+    }
+    inline virtual const std::string getVariableName() const
+    {
+        return variableName;
+    }
 
     const std::string valueOnlyToString() const;
 
@@ -312,6 +320,7 @@ protected:
     std::string sourceLoc;  ///< Source code information of this value
     std::string sourceFile; ///< Source file information of this value
     unsigned sourceLine; ///< Source line information of this value
+    std::string variableName;  ///< Variable name
 
     /// Helper functions to check node kinds
     //{@ Check node kind

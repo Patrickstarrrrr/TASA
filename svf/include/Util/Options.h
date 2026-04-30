@@ -261,6 +261,7 @@ public:
     /// npd checker, Default: false
     static const Option<bool> NPDCheck;
     /// data race checker, Default: false
+    static const Option<bool> MyUAFCheck;
     static const Option<bool> RaceCheck;
     /// if the access index of gepstmt is unknown, skip it, Default: false
     static const Option<bool> GepUnknownIdx;
@@ -279,6 +280,13 @@ public:
     static const Option<bool> EnablePTIG;
     
     static const Option<bool> SVFGVariableName;
+    static const Option<bool> NoPathSolver;
+
+    static const Option<bool> computeBranchConflict;
+    static const Option<bool> computeBackwardBranchNum;
+    static const Option<bool> RicanDebug;
+
+    static const Option<bool> FlowsensitiveSaber;
 };
 }  // namespace SVF
 

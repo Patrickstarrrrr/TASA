@@ -39,7 +39,7 @@
 #include "MemoryModel/PointerAnalysisImpl.h"
 #include <cstddef>
 #include <fstream>
-#include "Util/Options.h"
+// #include "Util/Options.h"
 #include "Util/ThreadAPI.h"
 
 using namespace SVF;
@@ -764,7 +764,93 @@ void SVFG::performStat()
     stat->performStat();
 }
 
+void SVFG::computeDereferenceSVFNodes()
+{
+    for (auto it = this->begin(), eit = this->end(); it != eit; ++it)
+    {
+        const SVFGNode* node = it->second;
+        if (const LoadSVFGNode* loadnode = SVFUtil::dyn_cast<LoadSVFGNode>(node))
+        {
+            const PAGNode* loaddst = loadnode->getPAGDstNode();
+            for (auto loadoutit = loadnode->OutEdgeBegin(), loadouteit = loadnode->OutEdgeEnd(); loadoutit != loadouteit; ++loadoutit)
+            {
+                const SVFGNode* loadoutnode = (*loadoutit)->getDstNode();
+                if (const LoadSVFGNode* loadload = SVFUtil::dyn_cast<LoadSVFGNode>(loadoutnode)) 
+                {
+                    const PAGNode* loadloadsrc = loadload->getPAGSrcNode();
+                    if (loadloadsrc == loaddst)
+                    {
+                        dereferenceSVFNodes.insert(node);
+                        // addToSinks(loadnode);
+                        // useSinkSVFGNodes.set(loadnode->getId());
+                        // addSinkToPAGNodeMap(loadnode, loaddst);
+                        // addSnkToCSID(loadnode, nullptr); // snk info
+                    }
+                }
+                else if (const StoreSVFGNode* loadstore = SVFUtil::dyn_cast<StoreSVFGNode>(loadoutnode)) 
+                {
+                    const PAGNode* loadstoredst = loadstore->getPAGDstNode();
+                    if (loadstoredst == loaddst)
+                    {
+                        dereferenceSVFNodes.insert(node);
+                        // addToSinks(loadnode);
+                        // useSinkSVFGNodes.set(loadnode->getId());
+                        // addSinkToPAGNodeMap(loadnode, loaddst);
+                        // addSnkToCSID(loadnode, nullptr); // snk info
+                    }
+                }
+            }
+        }
+    }
+}
 
+void SVFG::computeInputReachable()
+{
+    if (Options::ComputeInputReachable())
+    {
+        if (Options::RicanDebug())
+            std::cout<< "initInputNodeSet begin...\n";
+        this->initInputNodeSet();
+        if (Options::RicanDebug()) {
+            std::cout << "inputNoddeSet size: " << this->inputNodeSet.count() << "\n";
+            std::cout<< "Number of SVFG nodes: " << this->getSVFGNodeNum() << "\n";
+        }
+        if (Options::PrintInputReachable()) {
+            std::cout << "Input SVFG nodes: \n";
+            for (auto id: this->inputNodeSet)
+            {
+                SVFGNode* node = this->getSVFGNode(id);
+                if (node)
+                {
+                    std::cout << node->toString() << "\n";
+                }
+            }
+        }
+        if (Options::RicanDebug()) 
+            std::cout<< "computeReachableNodesByID begin...\n";
+        for (NodeID id: this->inputNodeSet) 
+        {
+            this->computeReachableNodesByID(id);
+        }
+        this->inputReachableSet = this->reachableSet;
+        if (Options::RicanDebug()) {
+            std::cout<< "Number of reachable nodes: " << this->inputReachableSet.count() << "\n";
+            std::cout<< "Number of SVFG nodes: " << this->getSVFGNodeNum() << "\n";
+        }
+    }
+    if (Options::PrintInputReachable())
+    {   
+        std::cout << "Reachable SVFG nodes: \n";
+        for (auto id: this->inputReachableSet)
+        {
+            SVFGNode* node = this->getSVFGNode(id);
+            if (node)
+            {
+                std::cout << node->toString() << "\n";
+            }
+        }
+    }
+}
 void SVFG::computeReachableNodesByID(NodeID id)
 {
     if (reachableSet.test(id)) return;

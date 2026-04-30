@@ -32,7 +32,12 @@
 #include <sstream>
 #include <llvm/Support/raw_ostream.h>
 #include "SVF-LLVM/LLVMModule.h"
-
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugInfo.h"              // findDbgUsers (LLVM 17 有)
+#include "llvm/Analysis/ValueTracking.h"     // GetUnderlyingObject
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Transforms/Utils/Local.h"
+// #include "llvm/Analysis/ValueTracking.h"
 
 using namespace SVF;
 
@@ -839,32 +844,32 @@ std::string LLVMUtil::dumpValueAndDbgInfo(const Value *val)
     return rawstr.str();
 }
 
-std::string LLVMUtil::dumpVariableName(const Value *val)
-{
-    std::string str;
-    llvm::raw_string_ostream rawstr(str);
-    if (val) {
-        if (const Instruction* inst = SVFUtil::dyn_cast<Instruction>(val))
-        {
-            const llvm::DbgDeclareInst *DDI = SVFUtil::dyn_cast<llvm::DbgDeclareInst>(inst);
-            if (DDI)
-            {
-                llvm::DILocalVariable *DILVar = SVFUtil::cast<llvm::DILocalVariable>(DDI->getVariable());
-                if (DILVar)
-                {
-                    rawstr << "loc name: " << DILVar->getName().str() << ", ";
-                }
-                llvm::DIVariable *DIVar = SVFUtil::cast<llvm::DIVariable>(DDI->getVariable());
-                if (DIVar) {
-                    rawstr << "name: " << DIVar->getName().str() << ", \"ln\": " << DIVar->getLine() << ", \"fl\": \"" << DIVar->getFilename().str() << "\"";
-                }
-            }
-        }
-    }
-    else
-        rawstr << " llvm Value is null";
-    return rawstr.str();
-}
+// std::string LLVMUtil::dumpVariableName(const Value *val)
+// {
+//     std::string str;
+//     llvm::raw_string_ostream rawstr(str);
+//     if (val) {
+//         if (const Instruction* inst = SVFUtil::dyn_cast<Instruction>(val))
+//         {
+//             const llvm::DbgDeclareInst *DDI = SVFUtil::dyn_cast<llvm::DbgDeclareInst>(inst);
+//             if (DDI)
+//             {
+//                 llvm::DILocalVariable *DILVar = SVFUtil::cast<llvm::DILocalVariable>(DDI->getVariable());
+//                 if (DILVar)
+//                 {
+//                     rawstr << "loc name: " << DILVar->getName().str() << ", ";
+//                 }
+//                 llvm::DIVariable *DIVar = SVFUtil::cast<llvm::DIVariable>(DDI->getVariable());
+//                 if (DIVar) {
+//                     rawstr << "name: " << DIVar->getName().str() << ", \"ln\": " << DIVar->getLine() << ", \"fl\": \"" << DIVar->getFilename().str() << "\"";
+//                 }
+//             }
+//         }
+//     }
+//     // else
+//     //     rawstr << " llvm Value is null";
+//     return rawstr.str();
+// }
 
 bool LLVMUtil::isHeapAllocExtCallViaRet(const Instruction* inst)
 {
@@ -954,6 +959,122 @@ const std::string SVFBaseNode::valueOnlyToString() const
     }
     rawstr << getSourceLoc();
     return rawstr.str();
+}
+
+// // 1. 从 DILocalVariable 提取变量名字符串
+// static inline std::string nameFromDILocal(const llvm::DILocalVariable *Var) {
+//     if (!Var) return "";
+//     return Var->getName().str();
+// }
+
+// 2. 从全局变量提取源码名
+static std::string nameFromGlobal(const llvm::GlobalVariable *GV) {
+    if (!GV) return "";
+    llvm::SmallVector<llvm::DIGlobalVariableExpression *, 1> GVs;
+    GV->getDebugInfo(GVs);
+    for (auto *GVE : GVs) {
+        if (auto *DGV = GVE->getVariable()) {
+            if (!DGV->getName().empty()) return DGV->getName().str();
+        }
+    }
+    return "";
+}
+
+// 3. 修复方案：手动查找与 Value 关联的调试指令
+// 这种方式兼容性最强，不依赖于特定版本的 findAllocaDbgDeclares
+static std::string findNameFromDbgIntrinsics(const llvm::Value *V) {
+    if (!V) return "";
+
+    // 对于 AllocaInst，LLVM 有内置的更安全的方法
+    if (auto *AI = llvm::dyn_cast<llvm::AllocaInst>(V)) {
+        // 使用针对不同版本 LLVM 兼容性较好的方式
+        llvm::SmallVector<llvm::DbgDeclareInst *, 1> DbgDeclares;
+        // 查找所有关联到该 alloca 的 dbg.declare
+        // 注意：在 LLVM 17 中，可以使用 FindAllocaDbgDeclare 的变体
+        // 如果无法使用之前的 findAllocaDbgDeclares，可以用下面的通用搜索
+        for (auto &BB : *AI->getFunction()) {
+            for (auto &I : BB) {
+                if (auto *DDI = llvm::dyn_cast<llvm::DbgDeclareInst>(&I)) {
+                    if (DDI->getAddress() == AI) {
+                        return DDI->getVariable()->getName().str();
+                    }
+                }
+            }
+        }
+    }
+
+    if (llvm::isa<llvm::UndefValue>(V) || llvm::isa<llvm::Constant>(V)) return "";
+    
+    // 对于其他 Value，查找关联的 dbg.value
+    llvm::SmallVector<llvm::DbgValueInst *, 1> DbgValues;
+    llvm::findDbgValues(DbgValues, const_cast<llvm::Value*>(V));
+    if (!DbgValues.empty()) {
+        return DbgValues[0]->getVariable()->getName().str();
+    }
+
+    return "";
+}
+
+// 4. 从指针追溯底层对象
+static std::string nameFromPointerValue(const llvm::Value *Ptr) {
+    if (!Ptr) return "";
+
+    // 剥离 pointer casts 以获取原始 alloca 或 global
+    const llvm::Value *Base = Ptr->stripPointerCasts();
+
+    // 尝试通过调试指令查找
+    std::string name = findNameFromDbgIntrinsics(Base);
+    if (!name.empty()) return name;
+
+    if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Base))
+        return nameFromGlobal(GV);
+
+    return "";
+}
+
+static std::string dumpVariableNameImpl(const llvm::Value *V,
+                                        llvm::SmallPtrSetImpl<const llvm::Value*> &Visited) {
+    if (!V || !Visited.insert(V).second) return "";
+
+    // 1. 如果 V 本身直接关联了变量名 (针对 SSA 变量)
+    std::string directName = findNameFromDbgIntrinsics(V);
+    if (!directName.empty()) return directName;
+
+    // 2. 处理 Load: 关注其来源指针
+    if (auto *LI = llvm::dyn_cast<llvm::LoadInst>(V)) {
+        return nameFromPointerValue(LI->getPointerOperand());
+    }
+
+    // 3. 处理 Store: 关注目标写入地址
+    if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(V)) {
+        return nameFromPointerValue(SI->getPointerOperand());
+    }
+
+    // 4. 处理指针类型
+    if (V->getType()->isPointerTy()) {
+        std::string name = nameFromPointerValue(V);
+        if (!name.empty()) return name;
+    }
+
+    // 5. 处理 GEP (结构体或数组)
+    if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(V)) {
+        return nameFromPointerValue(GEP->getPointerOperand());
+    }
+
+    // 6. 递归处理操作数 (对于表达式指令)
+    if (auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {
+        for (const llvm::Use &Op : I->operands()) {
+            std::string n = dumpVariableNameImpl(Op.get(), Visited);
+            if (!n.empty()) return n;
+        }
+    }
+
+    return "";
+}
+
+std::string LLVMUtil::dumpVariableName(const llvm::Value *V) {
+    llvm::SmallPtrSet<const llvm::Value*, 16> Visited;
+    return dumpVariableNameImpl(V, Visited);
 }
 
 } // namespace SVF

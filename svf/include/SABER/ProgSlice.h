@@ -40,6 +40,7 @@
 #include "SABER/SaberCondAllocator.h"
 #include "Util/WorkList.h"
 #include "Graphs/SVFG.h"
+#include "Util/Options.h"
 #include "Util/DPItem.h"
 #include "Util/SVFBugReport.h"
 
@@ -173,6 +174,7 @@ public:
     bool isSatisfiableForPairs();
     bool isSatisfiableForSinkToUser();
     bool isSatisfiableForSomeSinks();
+    bool isSatisfiableForUAFSinks();
     
     /// Get callsite ID and get returnsiteID from SVFGEdge
     //@{
@@ -231,6 +233,9 @@ protected:
     //@{
     inline Condition getVFCond(const SVFGNode* node) const
     {
+        if (Options::NoPathSolver()) {
+            return getTrueCond();
+        }
         SVFGNodeToCondMap::const_iterator it = svfgNodeToCondMap.find(node);
         if(it==svfgNodeToCondMap.end())
         {

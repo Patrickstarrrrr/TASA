@@ -50,11 +50,13 @@ void SaberSVFGBuilder::buildSVFG()
 
     DBOUT(DGENERAL, outs() << pasMsg("\tRemove Dereference Direct SVFG Edge\n"));
 
-    if (!Options::NPDCheck())
+    svfg->computeDereferenceSVFNodes();
+
+    if (((!Options::NPDCheck()) && (!Options::UAFCheck()) && (!Options::MyUAFCheck())) || (Options::NoPathSolver())) // WJYTODO
         rmDerefDirSVFGEdges(pta);
 
     assert(saberCondAllocator && "saber condition allocator not set yet!");
-    if (!Options::NPDCheck())
+    // if (!Options::NPDCheck()) // WJYTODO
         rmIncomingEdgeForSUStore(pta);
 
     DBOUT(DGENERAL, outs() << pasMsg("\tAdd Sink SVFG Nodes\n"));

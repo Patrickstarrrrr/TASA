@@ -213,6 +213,7 @@ protected:
     std::string name;       ///< Short name of value for printing & debugging
     std::string sourceLoc;  ///< Source code information of this value
     std::string sourceFile;
+    std::string variableName;  ///< Variable name
     unsigned sourceLine;
     /// Constructor without name
     SVFValue(const SVFType* ty, SVFValKind k)
@@ -298,6 +299,14 @@ public:
     inline virtual const unsigned getSourceLine() const
     {
         return sourceLine;
+    }
+    inline virtual void setVariableName(const std::string& varName)
+    {
+        variableName = varName;
+    }
+    inline virtual const std::string& getVariableName() const
+    {
+        return variableName;
     }
     /// Needs to be implemented by a SVF front end
     std::string toString() const;

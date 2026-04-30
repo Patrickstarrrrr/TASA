@@ -78,6 +78,7 @@ public:
     typedef NodeBS SVFGNodeBS;
     typedef ProgSlice::VFWorkList WorkList;
     typedef Map<NodeID, NodeID> SinkToPAGNodeMap;
+    typedef Map<NodeID, NodeID> SourceToPAGNodeMap; 
 
 
 private:
@@ -89,7 +90,8 @@ private:
     SVFGNodeSet visitedSet;	///<  record backward visited nodes
 
     SinkToPAGNodeMap sinkToPAGNodeMap;	///< map a sink to its corresponding PAG node
-    
+    SourceToPAGNodeMap sourceToPAGNodeMap;	///< map a source to its corresponding PAG node
+
 protected:
     SaberSVFGBuilder memSSA;
     SVFG* svfg;
@@ -263,6 +265,11 @@ public:
     {
         sinkToPAGNodeMap[sink->getId()] = pagNode->getId();
     }
+    inline void addSourceToPAGNodeMap(const SVFGNode* source, const PAGNode* pagNode)
+    {
+        sourceToPAGNodeMap[source->getId()] = pagNode->getId();
+    }
+    
     public:
     inline const PAGNode* getPAGNodeBySink(const SVFGNode* sink) const
     {

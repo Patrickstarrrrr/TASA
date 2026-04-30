@@ -28,15 +28,23 @@
  */
 
 #include "SABER/ProgSlice.h"
+#include "Graphs/ICFG.h"
 #include "Graphs/IRGraph.h"
 #include "Graphs/SVFG.h"
 #include "Graphs/VFGNode.h"
 #include "SABER/LeakChecker.h"
+#include "SABER/MyUAFChecker.h"
 #include "SVFIR/SVFValue.h"
 #include "Util/Casting.h"
+#include "Util/CommandLine.h"
+#include "Util/GeneralType.h"
 #include "Util/Options.h"
 #include "Util/ThreadAPI.h"
+#include <iostream>
 #include <utility>
+
+// #include "../../svf-llvm/include/SVF-LLVM/LLVMUtil.h"
+// #include "../../svf-llvm/include/SVF-LLVM/LLVMModule.h"
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -51,11 +59,29 @@ using namespace SVFUtil;
  */
 bool ProgSlice::AllPathReachableSolve()
 {
+    // std::cout << "====== AllPathReachableSolve Begin ... ======\n";
     const SVFGNode* source = getSource();
     VFWorkList worklist;
-    worklist.push(source);
-    /// mark source node conditions to be true
-    setVFCond(source,getTrueCond());
+    if (Options::NoPathSolver()) 
+    {
+        return false;
+    }
+    if (Options::NPDCheck()) {
+        for (auto it = source->OutEdgeBegin(), eit = source->OutEdgeEnd(); it != eit; ++it)
+        {
+            const SVFGNode* node = (*it)->getDstNode();
+            if (SVFUtil::isa<StoreSVFGNode>(node))
+            {
+                worklist.push(node);
+                setVFCond(node, getTrueCond());
+            }   
+        }
+    }
+    else {
+        worklist.push(source);
+        /// mark source node conditions to be true
+        setVFCond(source,getTrueCond());
+    }
 
     while(!worklist.empty())
     {
@@ -68,6 +94,7 @@ bool ProgSlice::AllPathReachableSolve()
         {
             const SVFGEdge* edge = (*it);
             const SVFGNode* succ = edge->getDstNode();
+            // if(inBackwardSlice(succ) || Options::UAFCheck())
             if(inBackwardSlice(succ))
             {
                 Condition vfCond;
@@ -101,6 +128,7 @@ bool ProgSlice::AllPathReachableSolve()
         }
     }
 
+    // std::cout << "====== AllPathReachableSolve End ... ======\n";
     return isSatisfiableForAll();
 }
 
@@ -184,14 +212,38 @@ bool ProgSlice::isSatisfiableForPairs()
                 const SVFGNode* src = *it;
                 const SVFGNode* dst = *sit;
                 auto dda = (LeakChecker*)(ssDDA);
+                // const PAGNode* srcPAGNode = dda->getPAGNodeBySink(src);
+                // const PAGNode* dstPAGNode = dda->getPAGNodeBySink(dst);
+                
                 if (Options::PrintDFBugSinkInfo())
                 {
                     std::cout << "sink 1 at : (" 
                         << dda->getSnkCSID(src)->getSourceLoc()
-                        << ")\n";
+                        << ")";
+                    if (Options::SVFGVariableName())
+                    {
+                        std::string varName = dda->getSnkCSID(src)->getVariableName();
+                        // std::cout << " PAGNode: " << srcPAGNode->getId() << " ";
+                        if (!varName.empty())
+                        {
+                            std::cout << "[" << varName << "]";
+                        }
+                    }
+                    std::cout << "\n";
+                    
                     std::cout << "sink 2 at : (" 
                         << dda->getSnkCSID(dst)->getSourceLoc()
-                        << ")\n";
+                        << ")";
+                    if (Options::SVFGVariableName())
+                    {
+                        std::string varName = dda->getSnkCSID(dst)->getVariableName();
+                        // std::cout << " PAGNode: " << dstPAGNode->getId() << " ";
+                        if (!varName.empty())
+                        {
+                            std::cout << "[" << varName << "]";
+                        }
+                    }
+                    std::cout << "\n";
                 }
                 if (Options::ComputeInputReachable())
                 {
@@ -201,13 +253,13 @@ bool ProgSlice::isSatisfiableForPairs()
                     const std::string dstloc = dstvalue->getSourceLoc();
                     NodeID srcid = (*it)->getId();
                     NodeID dstid = (*sit)->getId();
-                    bool srcReach = svfg->reachableSet.test(srcid);
-                    bool dstReach = svfg->reachableSet.test(dstid);
+                    bool srcReach = svfg->inputReachableSet.test(srcid);
+                    bool dstReach = svfg->inputReachableSet.test(dstid);
                     if (srcReach && dstReach) {
                         inputsReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Both Reachable : (" 
+                            std::cout << "Non-IA Alarm (Input can reach two sinks): (" 
                             << srcid << " at : [" << srcloc  << "]" 
                             << ", " 
                             << dstid << " at : [" << dstloc << "])\n";
@@ -217,7 +269,7 @@ bool ProgSlice::isSatisfiableForPairs()
                         inputsHalfReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "First Reachable : (" 
+                            std::cout << "Non-IA Alarm (Input can reach the first sink): (" 
                             << srcid << " at : [" << srcloc  << "]" 
                             << ", " 
                             << dstid << " at : [" << dstloc << "])\n";
@@ -227,7 +279,7 @@ bool ProgSlice::isSatisfiableForPairs()
                         inputsHalfReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Second Reachable : (" 
+                            std::cout << "Non-IA Alarm (Input can reach the second sink): (" 
                             << srcid << " at : [" << srcloc  << "]" 
                             << ", " 
                             << dstid << " at : [" << dstloc << "])\n";
@@ -241,7 +293,7 @@ bool ProgSlice::isSatisfiableForPairs()
                         }
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Both Unreachable : (" 
+                            std::cout << "IA Alarm (Input unreachable): (" 
                             << srcid << " at : [" << srcloc  << "]" 
                             << ", " 
                             << dstid << " at : [" << dstloc << "])\n";
@@ -270,21 +322,33 @@ bool ProgSlice::isSatisfiableForPairs()
         const PAGNode* sinkpagnode = ssDDA->getPAGNodeBySink(sinknode);
         if (sinkpagnode == nullptr)
             continue;
-        ssDDA->getSVFG()->backwardReachableSet.clear();
-        ssDDA->getSVFG()->computeBackwardReachableNodesByID(sinknode->getId());
+        // ssDDA->getSVFG()->backwardReachableSet.clear();
+        // ssDDA->getSVFG()->computeBackwardReachableNodesByID(sinknode->getId());
+        // ssDDA->getSVFG()->reachableSet.clear();
+        // ssDDA->getSVFG()->computeReachableNodesByID(sinknode->getId());
+        const ICFGNode* freeicfgnode = sinknode->getICFGNode();
+        auto ICFGfreeForwardSlice = ssDDA->getSVFG()->getPAG()->getICFG()
+            ->getForwardSlice(freeicfgnode);
         for (auto useit = this->forwardSliceBegin(), useeit = this->forwardSliceEnd(); useit != useeit; ++useit)
         {
-            // svfg->reachableSet.clear();
-            // svfg->computeReachableNodesByID(sinknode->getId());
             const SVFGNode* node = *useit;
-            if ((ssDDA->getSVFG()->backwardReachableSet.test(node->getId())))
-                continue; // backreachable from sink
+            const ICFGNode* useicfgnode = node->getICFGNode();
+            if (ICFGfreeForwardSlice.find(useicfgnode) == ICFGfreeForwardSlice.end())
+                continue; // not in the forward slice of free
+
+            // if ((ssDDA->getSVFG()->backwardReachableSet.test(node->getId())))
+            //     continue; // backreachable from sink
+            // if (!(ssDDA->getSVFG()->reachableSet.test(node->getId())))
+            //     continue; // not reachable from sink
+            
             if (*useit == *sinkit)
                 continue;
             const PAGNode* usepointer = nullptr;
             if (auto loaduse = SVFUtil::dyn_cast<LoadSVFGNode>(node))
             {
                 usepointer = loaduse->getPAGSrcNode();
+                // std::cout << "Free pag node: " << sinkpagnode->toString() << "\n";
+                // std::cout << "Use pag node: " << usepointer->toString() << "\n";
             }
             else if (auto storeuse = SVFUtil::dyn_cast<StoreSVFGNode>(node))
             {
@@ -309,17 +373,38 @@ bool ProgSlice::isSatisfiableForPairs()
             else if (auto paramuse = SVFUtil::dyn_cast<ArgumentVFGNode>(node))
             {
                 usepointer = paramuse->getParm();
+                if (auto actparamuse = SVFUtil::dyn_cast<ActualParmVFGNode>(paramuse))
+                {
+                    const SVFFunction* callee = actparamuse->getCallSite()->getCalledFunction();
+                    if (SaberCheckerAPI::getCheckerAPI()->isMemDealloc(callee))
+                    {
+                        // skip deallocation functions
+                        continue;
+                    }
+                }
+                
             }
             if (usepointer == nullptr)
                 continue;
+            // debug
+            // auto sinkPts = ssDDA->getSVFG()->getPTA()->getPts(sinkpagnode->getId());
+            // auto usePts = ssDDA->getSVFG()->getPTA()->getPts(usepointer->getId());
+            // ssDDA->getSVFG()->getPTA()->dumpPts(sinkpagnode->getId(), sinkPts);
+            // ssDDA->getSVFG()->getPTA()->dumpPts(usepointer->getId(), usePts);
+            // debug
             if(!(ssDDA->getSVFG()->getPTA()->alias(usepointer->getId(), sinkpagnode->getId())))
                 continue;
-            Condition guard = condAnd(getVFCond(sinknode),getVFCond(*useit));
+            Condition guard = condAnd(getVFCond(sinknode),getVFCond(node));
+            //debug
+            // std::cout << "sink vfcond: " << getVFCond(sinknode).to_string() << "\n";
+            // std::cout << "use vfcond: " << getVFCond(node).to_string() << "\n";
+            // std::cout << "and vfcond: " << guard.to_string() << "\n";
+            //debug
             if(!isEquivalentBranchCond(guard, getFalseCond()))
             {
                 setFinalCond(guard);
-                const SVFGNode* src = *sinkit;
-                const SVFGNode* dst = *useit;
+                const SVFGNode* src = sinknode;
+                const SVFGNode* dst = node;
                 auto dda = (LeakChecker*)(ssDDA);
                 // if (Options::PrintDFBugSinkInfo())
                 // {
@@ -333,42 +418,94 @@ bool ProgSlice::isSatisfiableForPairs()
                 // }
                 if (Options::ComputeInputReachable())
                 {
-                    const SVFValue* srcvalue = src->getValue();
+                    const SVFValue* srcvalue = sinkpagnode->getValue();// src->getValue();
                     const SVFValue* dstvalue = dst->getValue();
+                    const SVFValue* dstvariableValue = usepointer->getValue();
                     const std::string srcloc = srcvalue->getSourceLoc();
                     const std::string dstloc = dstvalue->getSourceLoc();
-                    NodeID srcid = (*sinkit)->getId();
-                    NodeID dstid = (*useit)->getId();
+                    NodeID srcid = src->getId();
+                    NodeID dstid = dst->getId();
                     bool srcReach = ssDDA->getSVFG()->reachableSet.test(srcid);
                     bool dstReach = ssDDA->getSVFG()->reachableSet.test(dstid);
                     if (srcReach && dstReach) {
                         inputsReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Both Reachable : (" 
-                            << srcid << " at : [" << srcloc  << "]" 
-                            << ", " 
-                            << dstid << " at : [" << dstloc << "])\n";
+                            std::cout << "Non-IA Alarm (Input can reach both sites): \n";
+                            std::cout << "free site: (" << srcloc  << ")"; 
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use site: (" << dstloc << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = dstvariableValue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
                         }
                     }
                     else if (srcReach) {
                         inputsHalfReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "First Reachable : (" 
-                            << srcid << " at : [" << srcloc  << "]" 
-                            << ", " 
-                            << dstid << " at : [" << dstloc << "])\n";
+                            std::cout << "Non-IA Alarm (Input can reach free site): \n";
+                            std::cout << "free site: (" << srcloc  << ")"; 
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use site: (" << dstloc << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = dstvariableValue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
                         }
                     }
                     else if (dstReach) {
                         inputsHalfReachableBugs++;
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Second Reachable : (" 
-                            << srcid << " at : [" << srcloc  << "]" 
-                            << ", " 
-                            << dstid << " at : [" << dstloc << "])\n";
+                            std::cout << "Non-IA Alarm (Input can reach use site): \n";
+                            std::cout << "free site: (" << srcloc  << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use site: (" << dstloc << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = dstvariableValue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
                         }
                     }
                     else {
@@ -379,10 +516,27 @@ bool ProgSlice::isSatisfiableForPairs()
                         }
                         if (Options::PrintDFBugSinkInfo())
                         {
-                            std::cout << "Both Unreachable : (" 
-                            << srcid << " at : [" << srcloc  << "]" 
-                            << ", " 
-                            << dstid << " at : [" << dstloc << "])\n";
+                            std::cout << "IA Alarm (Input unreachable): \n";
+                            std::cout << "free site: (" << srcloc  << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use site: (" << dstloc << ")";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = dstvariableValue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
                         }
                     }
                 }
@@ -396,14 +550,23 @@ bool ProgSlice::isSatisfiableForPairs()
     return ret;
 }
 /*!
- * Solve by analysing each sink to user (e.g., UAF)
+ * Solve by analysing each source (null) to sink (deref) (e.g., NPD)
  */
  bool ProgSlice::isSatisfiableForSomeSinks()
  {
     bool ret = true;
-    for(SVFGNodeSetIter sinkit = sinksBegin(), sinkeit = sinksEnd(); sinkit!= sinkeit; ++sinkit)
+
+    const ICFGNode* freeicfgnode = getSource()->getICFGNode();
+    auto ICFGfreeForwardSlice = ssDDA->getSVFG()->getPAG()->getICFG()
+        ->getForwardSlice(freeicfgnode);
+    
+    for(SVFGNodeSetIter sinkit = ssDDA->sinksBegin(), sinkeit = ssDDA->sinksEnd(); sinkit!= sinkeit; ++sinkit)
     {
         const SVFGNode* sinknode = *sinkit;
+        // NodeID dstid = sinknode->getId();
+        const ICFGNode* useicfgnode = sinknode->getICFGNode();
+        if (ICFGfreeForwardSlice.find(useicfgnode) == ICFGfreeForwardSlice.end())
+            continue; // not in the forward slice of free
         // const PAGNode* sinkpagnode = ssDDA->getPAGNodeBySink(sinknode);
         // if (sinkpagnode == nullptr)
         //     continue;
@@ -423,8 +586,42 @@ bool ProgSlice::isSatisfiableForPairs()
                     inputsReachableBugs++;
                     if (Options::PrintDFBugSinkInfo())
                     {
-                        std::cout << "Input Reachable : (" 
-                        << srcid << " at : [" << srcloc  << "]\n";
+                        std::cout << "Non-IA alarm: SVFNode " << srcid << "\n";
+                        if (Options::NPDCheck()) {
+                            std::cout << "deref at : (" << srcloc  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                        }
+                        else if (Options::MyUAFCheck()) {
+                            const SVFGNode* freenode = getSource();
+                            const SVFValue* freevalue = freenode->getValue();
+                            std::cout << "free at : (" << freevalue->getSourceLoc()  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = freevalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use at : (" << srcloc  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                        }
+                        std::cout << "\n";
                     }
                 }
                 else {
@@ -434,8 +631,42 @@ bool ProgSlice::isSatisfiableForPairs()
                     }
                     if (Options::PrintDFBugSinkInfo())
                     {
-                        std::cout << "Input Unreachable : (" 
-                        << srcid << " at : [" << srcloc  << "]\n";
+                        std::cout << "IA Alarm: SVFNode " << srcid << "\n";
+                        if (Options::NPDCheck()) {
+                            std::cout << "deref at : (" << srcloc  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                        }
+                        else if (Options::MyUAFCheck()) {
+                            const SVFGNode* freenode = getSource();
+                            const SVFValue* freevalue = freenode->getValue();
+                            std::cout << "free at : (" << freevalue->getSourceLoc()  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = freevalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                            std::cout << "\n";
+                            std::cout << "use at : (" << srcloc  << ") ";
+                            if (Options::SVFGVariableName())
+                            {
+                                std::string varName = srcvalue->getVariableName();
+                                if (!varName.empty())
+                                {
+                                    std::cout << "[" << varName << "]";
+                                }
+                            }
+                        }
+                        std::cout << "\n";
                     }
                 }
             }
@@ -443,6 +674,143 @@ bool ProgSlice::isSatisfiableForPairs()
             ret = false;
         }
     }
+    return ret;
+}
+
+/*!
+ * Solve by analysing each pair of freesink and usesink (uaf)
+ */
+bool ProgSlice::isSatisfiableForUAFSinks()
+{
+    if (!Options::MyUAFCheck()) {
+        return true;
+    }
+    auto dda = (MyUAFChecker*) ssDDA;
+    bool ret = true;
+    for(SVFGNodeSetIter it = sinksBegin(), eit = sinksEnd(); it!=eit; ++it)
+    {
+        // auto svfgnode = *it;
+        const SVFGNode* src = *it;
+        NodeID srcid = src->getId();
+        if (!dda->freeSinkSVFGNodes.test(srcid)) {
+            continue; // not a free sink
+        }
+        const ICFGNode* freeicfgnode = src->getICFGNode();
+        auto ICFGfreeForwardSlice = ssDDA->getSVFG()->getPAG()->getICFG()
+            ->getForwardSlice(freeicfgnode);
+        
+        for(SVFGNodeSetIter sit = it, esit = sinksEnd(); sit!=esit; ++sit)
+        {
+            if(*it == *sit)
+                continue;
+            const SVFGNode* dst = *sit;
+            NodeID dstid = dst->getId();
+            if (!dda->useSinkSVFGNodes.test(dstid)) {
+                continue; // not a use sink
+            }
+            const ICFGNode* useicfgnode = dst->getICFGNode();
+            if (ICFGfreeForwardSlice.find(useicfgnode) == ICFGfreeForwardSlice.end())
+                continue; // not in the forward slice of free
+            Condition guard = condAnd(getVFCond(*sit),getVFCond(*it));
+            if(!isEquivalentBranchCond(guard, getFalseCond()))
+            {
+                setFinalCond(guard);
+                // auto dda = (LeakChecker*)(ssDDA);
+                // const PAGNode* srcPAGNode = dda->getPAGNodeBySink(src);
+                // const PAGNode* dstPAGNode = dda->getPAGNodeBySink(dst);
+                
+                if (Options::PrintDFBugSinkInfo())
+                {
+                    std::cout << "free at : (" 
+                        << dda->getSnkCSID(src)->getSourceLoc()
+                        << ")";
+                    if (Options::SVFGVariableName())
+                    {
+                        std::string varName = dda->getSnkCSID(src)->getVariableName();
+                        // std::cout << " PAGNode: " << srcPAGNode->getId() << " ";
+                        if (!varName.empty())
+                        {
+                            std::cout << "[" << varName << "]";
+                        }
+                    }
+                    std::cout << "\n";
+                    
+                    std::cout << "use at : (" 
+                        << dst->getValue()->getSourceLoc()
+                        << ")";
+                    if (Options::SVFGVariableName())
+                    {
+                        std::string varName = dst->getValue()->getVariableName();
+                        // std::cout << " PAGNode: " << dstPAGNode->getId() << " ";
+                        if (!varName.empty())
+                        {
+                            std::cout << "[" << varName << "]";
+                        }
+                    }
+                    std::cout << "\n";
+                }
+                if (Options::ComputeInputReachable())
+                {
+                    const SVFValue* srcvalue = src->getValue();
+                    const SVFValue* dstvalue = dst->getValue();
+                    const std::string srcloc = srcvalue->getSourceLoc();
+                    const std::string dstloc = dstvalue->getSourceLoc();
+                    NodeID srcid = (*it)->getId();
+                    NodeID dstid = (*sit)->getId();
+                    bool srcReach = svfg->inputReachableSet.test(srcid);
+                    bool dstReach = svfg->inputReachableSet.test(dstid);
+                    if (srcReach && dstReach) {
+                        inputsReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Non-IA Alarm (Input can reach use and free sites): (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else if (srcReach) {
+                        inputsHalfReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Non-IA Alarm (Input can reach the use site): (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else if (dstReach) {
+                        inputsHalfReachableBugs++;
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "Non-IA Alarm (Input can reach the free site): (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                    else {
+                        inputsUnreachableBugs++;
+                        if (Options::BranchBBInfo()) {
+                            dda->unreachableSinks.set(srcid);
+                            dda->unreachableSinks.set(dstid);
+                        }
+                        if (Options::PrintDFBugSinkInfo())
+                        {
+                            std::cout << "IA Alarm (Input unreachable): (" 
+                            << srcid << " at : [" << srcloc  << "]" 
+                            << ", " 
+                            << dstid << " at : [" << dstloc << "])\n";
+                        }
+                    }
+                }
+                bugnum++;
+                // return false;
+                ret = false;
+            }
+        }
+    }
+
     return ret;
 }
 

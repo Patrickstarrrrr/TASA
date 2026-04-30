@@ -357,8 +357,10 @@ std::string dumpType(const Type* type);
 
 std::string dumpValueAndDbgInfo(const Value* val);
 
-std::string dumpVariableName(const Value* val);
-
+// std::string dumpVariableName(const Value* val);
+// std::string getNameFromDIVar(const llvm::DILocalVariable *Var);
+// std::string getNameFromDbgIntrinsic(const llvm::Instruction *I);
+std::string dumpVariableName(const llvm::Value *V);
 bool isHeapAllocExtCallViaRet(const Instruction *inst);
 
 bool isHeapAllocExtCallViaArg(const Instruction *inst);

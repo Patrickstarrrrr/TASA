@@ -34,6 +34,7 @@
 #include "Graphs/ICFGEdge.h"
 #include "Util/WorkList.h"
 #include "MemoryModel/SVFLoop.h"
+#include <unordered_set>
 
 namespace SVF
 {
@@ -302,12 +303,10 @@ private:
     }
 
 public:
-    inline int getBackwardSliceBranchNum(const ICFGNode* seed)
+    inline std::unordered_set<const ICFGNode*>  getBackwardSlice(const ICFGNode* seed)
     {
-        int branchNum = 0;
         std::unordered_set<const ICFGNode*> slice;
         std::stack<const ICFGNode*> work;
-
         slice.insert(seed);
         work.push(seed);
         while(!work.empty()) {
@@ -325,6 +324,57 @@ public:
                 }
             }
         }
+        return slice;
+    }
+
+    inline std::unordered_set<const ICFGNode*> getForwardSlice(const ICFGNode* seed)
+    {
+        std::unordered_set<const ICFGNode*> slice;
+        std::stack<const ICFGNode*> work;
+        slice.insert(seed);
+        work.push(seed);
+        while(!work.empty()) {
+            const ICFGNode* cur = work.top();
+            work.pop();
+
+            // iterate over outgoing edges
+            for (auto it = cur->OutEdgeBegin(); it != cur->OutEdgeEnd(); ++it) {
+                auto* e = *it;
+                auto* dst = e->getDstNode();
+
+                if (!slice.count(dst)) {
+                    slice.insert(dst);
+                    work.push(dst);
+                }
+            }
+        }
+        return slice;
+    }
+    
+    inline int getBackwardSliceBranchNum(const ICFGNode* seed)
+    {
+        int branchNum = 0;
+        // std::unordered_set<const ICFGNode*> slice;
+        // std::stack<const ICFGNode*> work;
+
+        // slice.insert(seed);
+        // work.push(seed);
+        // while(!work.empty()) {
+        //     const ICFGNode* cur = work.top();
+        //     work.pop();
+
+        //     // iterate over incoming edges
+        //     for (auto it = cur->InEdgeBegin(); it != cur->InEdgeEnd(); ++it) {
+        //         auto* e = *it;
+        //         auto* src = e->getSrcNode();
+
+        //         if (!slice.count(src)) {
+        //             slice.insert(src);
+        //             work.push(src);
+        //         }
+        //     }
+        // }
+        auto slice = this->getBackwardSlice(seed);
 
         // auto backwardSet = this->getBackwardSlice(seed->getId());
         for (auto slicenode : slice)

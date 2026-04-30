@@ -52,6 +52,8 @@
 #include <utility>
 #include <vector>
 
+#include "WPA/FlowSensitive.h"
+
 using namespace SVF;
 using namespace SVFUtil;
 
@@ -59,21 +61,39 @@ using namespace SVFUtil;
 void SrcSnkDDA::initialize(SVFModule* module)
 {
     SVFIR* pag = PAG::getPAG();
-
-    AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(pag);
-    memSSA.setSaberCondAllocator(getSaberCondAllocator());
-    if(Options::SABERFULLSVFG())
-        svfg =  memSSA.buildFullSVFG(ander);
-    else
-        svfg =  memSSA.buildPTROnlySVFG(ander);
-    setGraph(memSSA.getSVFG());
-    callgraph = ander->getCallGraph();
+    if (Options::FlowsensitiveSaber()) {
+        FlowSensitive* fspta = FlowSensitive::createFSWPA(pag);
+        memSSA.setSaberCondAllocator(getSaberCondAllocator());
+        if(Options::SABERFULLSVFG())
+            svfg =  memSSA.buildFullSVFG(fspta);
+        else
+            svfg =  memSSA.buildPTROnlySVFG(fspta);
+        setGraph(memSSA.getSVFG());
+        callgraph = fspta->getCallGraph();
+    }
+    else {
+        AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(pag);
+        memSSA.setSaberCondAllocator(getSaberCondAllocator());
+        if(Options::SABERFULLSVFG())
+            svfg =  memSSA.buildFullSVFG(ander);
+        else
+            svfg =  memSSA.buildPTROnlySVFG(ander);
+        setGraph(memSSA.getSVFG());
+        callgraph = ander->getCallGraph();
+    }
     //AndersenWaveDiff::releaseAndersenWaveDiff();
     /// allocate control-flow graph branch conditions
     getSaberCondAllocator()->allocate(getPAG()->getModule());
 
     initSrcs();
     initSnks();
+
+    if (Options::ComputeInputReachable())
+    {
+        if (Options::RicanDebug()) 
+            std::cout << "Compute input reachable nodes ...\n";
+        svfg->computeInputReachable();
+    }
 }
 
 void SrcSnkDDA::analyze(SVFModule* module)
@@ -84,6 +104,7 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
     ContextCond::setMaxCxtLen(Options::CxtLimit());
 
+    int repeat = 0;
     for (SVFGNodeSetIter iter = sourcesBegin(), eiter = sourcesEnd();
             iter != eiter; ++iter)
     {
@@ -122,8 +143,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
 
             DBOUT(DSaber, outs() << "Guard computation for slice:" << (*iter)->getId() << ")\n");
         }
-
-        reportBug(getCurSlice());
+        if (! repeat)
+            reportBug(getCurSlice());
+        if (Options::NPDCheck())
+            repeat = 1;
     }
 
     double analyzeEnd = SVFStat::myClk();
@@ -131,10 +154,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
     std::cout << "Total SrcSnkDDA Analysis Time: " << analyzeTime << "\n";
 
     double postProcessStart = SVFStat::myClk();
-    if (Options::ComputeInputReachable() && (Options::DFreeCheck() || Options::UAFCheck() || Options::NPDCheck()) && _curSlice != nullptr)
+    if (Options::ComputeInputReachable() && (Options::DFreeCheck() || Options::UAFCheck() || Options::NPDCheck() || Options::MyUAFCheck()) && _curSlice != nullptr)
     {
-        std::cout << "Total Bugs:" << _curSlice->bugnum << "\n";
-        std::cout << "Input Unreachable Bugs:" << _curSlice->inputsUnreachableBugs << "\n";
+        std::cout << "Total Alarms:" << _curSlice->bugnum << "\n";
+        std::cout << "IA Alarms:" << _curSlice->inputsUnreachableBugs << "\n";
         double computeInputReachableStart = SVFStat::myClk();
         unsigned unreachableSinkNum = 0;
         for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
@@ -147,9 +170,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         double computeInputReachableEnd = SVFStat::myClk();
         std::cout << "Total Sinks:" << getSinks().size() << "\n";
-        std::cout << "Input Unreachable Sinks:" << unreachableSinkNum << "\n";
+        std::cout << "IA Sinks:" << unreachableSinkNum << "\n";
         double computeInputReachableTime = (computeInputReachableEnd - computeInputReachableStart) / TIMEINTERVAL;
-        std::cout << "Compute Input Reachable Time: " << computeInputReachableTime << "\n";
+        if (Options::RicanDebug())
+            std::cout << "Compute Input Reachable Time: " << computeInputReachableTime << "\n";
     }
     if (Options::BranchBBInfo())
     {
@@ -164,41 +188,46 @@ void SrcSnkDDA::analyze(SVFModule* module)
         
         // for (auto it = getSinks().begin(), eit = getSinks().end(); it != eit; ++it)
         // Collect the bbs that are backward reachable from the input-unreachable-sinks.
-
-        std::cout << "Build PTIA begin ...\n";
+        if (Options::RicanDebug())
+            std::cout << "Build PTIA begin ...\n";
         double ptiaStart = SVFStat::myClk();
         AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(PAG::getPAG());
         PTIG* ptig = new PTIG(ander->getConstraintGraph());
         double ptiaEnd = SVFStat::myClk();
         double ptiaTime = (ptiaEnd - ptiaStart) / TIMEINTERVAL;
-        std::cout << "Build PTIA end\n";
-        std::cout << "PTIA Time: " << ptiaTime << "\n";
+        if (Options::RicanDebug())
+            std::cout << "Build PTIA end\n";
+        if (Options::RicanDebug())
+            std::cout << "PTIA Time: " << ptiaTime << "\n";
 
-        float totalBranchNum = 0.0;
-        int maxBranchNum = 0;
-        int minBranchNum = INT32_MAX;
-        int unreachableSinkNum = 0;
-        for (NodeID sinkid: unreachableSinks)
-        {
-            unreachableSinkNum++;
-            SVFGNode* sink = svfg->getSVFGNode(sinkid);
-            const ICFGNode* icfgNode = sink->getICFGNode();
-            // NodeID icfgNodeID = icfgNode->getId();
-            int branchnum = icfg->getBackwardSliceBranchNum(icfgNode);
-            totalBranchNum += branchnum;
-            if (branchnum > maxBranchNum) {
-                maxBranchNum = branchnum;
+        if (Options::computeBackwardBranchNum()) {
+            float totalBranchNum = 0.0;
+            int maxBranchNum = 0;
+            int minBranchNum = INT32_MAX;
+            int unreachableSinkNum = 0;
+            for (NodeID sinkid: unreachableSinks)
+            {
+                unreachableSinkNum++;
+                SVFGNode* sink = svfg->getSVFGNode(sinkid);
+                const ICFGNode* icfgNode = sink->getICFGNode();
+                // NodeID icfgNodeID = icfgNode->getId();
+                int branchnum = icfg->getBackwardSliceBranchNum(icfgNode);
+                totalBranchNum += branchnum;
+                if (branchnum > maxBranchNum) {
+                    maxBranchNum = branchnum;
+                }
+                if (branchnum < minBranchNum) {
+                    minBranchNum = branchnum;
+                }
             }
-            if (branchnum < minBranchNum) {
-                minBranchNum = branchnum;
-            }
+            std::cout << "Average Branch Num: " << (totalBranchNum / unreachableSinkNum) << "\n";
+            std::cout << "Max Branch Num: " << maxBranchNum << "\n";
+            std::cout << "Min Branch Num: " << minBranchNum << "\n";
+            // std::cout << "Total Unreachable Sinks: " << unreachableSinkNum << "\n";
+            std::cout << "Total Branch Num: " << getPAG()->getSVFStmtSet(SVFStmt::Branch).size() << "\n";
         }
-        std::cout << "Average Branch Num: " << (totalBranchNum / unreachableSinkNum) << "\n";
-        std::cout << "Max Branch Num: " << maxBranchNum << "\n";
-        std::cout << "Min Branch Num: " << minBranchNum << "\n";
-        std::cout << "Total Unreachable Sinks: " << unreachableSinkNum << "\n";
-        std::cout << "Total Branch Num: " << getPAG()->getSVFStmtSet(SVFStmt::Branch).size() << "\n";
-        std::cout << "Collect Sink BWBB begin ...\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Sink BWBB begin ...\n";
         double collectSinkBWBBStart = SVFStat::myClk();
         NodeBS gepInLoopSinks;
         Map<NodeID, NodeBS> sinkToBWReachableSet;
@@ -283,14 +312,17 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         double collectSinkBWBBEnd = SVFStat::myClk();
         double collectSinkBWBBTime = (collectSinkBWBBEnd - collectSinkBWBBStart) / TIMEINTERVAL;
-        std::cout << "Collect Sink BWBB end\n";
-        std::cout << "Collect Sink BWBB Time: " << collectSinkBWBBTime << "\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Sink BWBB end\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Sink BWBB Time: " << collectSinkBWBBTime << "\n";
 
 
         
 
         // Collect the branches that are backward reachable from the input-unreachable-sinks.
-        std::cout << "Collect Branch begin ...\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Branch begin ...\n";
         double collectBranchStart = SVFStat::myClk();
         for (auto branchStmt : svfg->getPAG()->getSVFStmtSet(SVFStmt::Branch))
         {
@@ -323,8 +355,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         double collectBranchEnd = SVFStat::myClk();
         double collectBranchTime = (collectBranchEnd - collectBranchStart) / TIMEINTERVAL;
-        std::cout << "Collect Branch end\n";
-        std::cout << "Collect Branch Time: " << collectBranchTime << "\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Branch end\n";
+        if (Options::RicanDebug())
+            std::cout << "Collect Branch Time: " << collectBranchTime << "\n";
         
         if (!Options::EnablePTIG()) {
             if (svfgNodeToBranches.size() != 0)
@@ -386,12 +420,12 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 total_ptig += branchesNum;
             }
             double avg_ptig = total_ptig / unreachableSinks.count();
-            std::cout << "Max PTIG Branches: " << max_ptig << "\n";
-            std::cout << "Min PTIG Branches: " << min_ptig << "\n";
-            std::cout << "Total PTIG Branches: " << total_ptig << "\n";
-            std::cout << "Avg PTIG Branches: " << avg_ptig << "\n";
-
-            std::cout << "Compute Branch BB Info end ...\n";
+            std::cout << "Max Critical Branches: " << max_ptig << "\n";
+            std::cout << "Min Critical Branches: " << min_ptig << "\n";
+            std::cout << "Total Critical Branches: " << total_ptig << "\n";
+            std::cout << "Avg Critical Branches: " << avg_ptig << "\n";
+            if (Options::RicanDebug())
+                std::cout << "Compute Branch BB Info end ...\n";
         } else {
             std::cout << "svfgNodeToBranches_PTIA.size() == 0!\n";
         }
@@ -436,8 +470,8 @@ void SrcSnkDDA::analyze(SVFModule* module)
                 {
                     noGepInLoopSVFGNode++;
                 }
-                std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
-                if (!gepInLoop) {
+                std::cout << "Loop-sensitive: " << (gepInLoop? "[Y]":"[N]") << "Branch-in-Loop:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << " Total Critical Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
+                if (Options::RicanDebug() && !gepInLoop) {
                     std::cout << "LoopBranches:\n";
                     for (const BranchStmt* loopBranch: svfgNodeToLoopBranches[it])
                     {
@@ -454,9 +488,10 @@ void SrcSnkDDA::analyze(SVFModule* module)
             }
 
 
-            std::cout << "No Loop Branch SVFGNode Num:" << noLoopSVFGNode << "\n";
-            std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode << "\n";
-            std::cout << "*********************\n";
+            std::cout << "No Branch-in-Loop SVFGNode Num:" << noLoopSVFGNode << "\n";
+            std::cout << "Loop-insensitive SVFGNode Num:" << noGepInLoopSVFGNode << "\n";
+            if (Options::RicanDebug())
+                std::cout << "*********************\n";
         }
 
         double loopBranchComputeStart = SVFStat::myClk();
@@ -497,8 +532,8 @@ void SrcSnkDDA::analyze(SVFModule* module)
             {
                 noGepInLoopSVFGNode_PTIG++;
             }
-            std::cout << "GepInLoop: " << (gepInLoop? "[Y]":"[N]") << " Loopbranch:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << "Total Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
-            if (!gepInLoop) {
+            std::cout << "Loop-sensitive: " << (gepInLoop? "[Y]":"[N]") << " Branch-in-Loop:" << (hasLoop ? "[Y]":"[N]") << " SVFGNode: " << it << " Total Critical Branches: " << totalbranches << " LoopBranches: " << loopbranches << "\n";
+            if (Options::RicanDebug() && !gepInLoop) {
                 std::cout << "LoopBranches:\n";
                 for (const BranchStmt* loopBranch: svfgNodeToLoopBranches_PTIA[it])
                 {
@@ -513,28 +548,32 @@ void SrcSnkDDA::analyze(SVFModule* module)
         }
         double loopBranchComputeEnd = SVFStat::myClk();
         double loopBranchComputeTime = (loopBranchComputeEnd - loopBranchComputeStart) / TIMEINTERVAL;
-        std::cout << "No Loop Branch SVFGNode Num:" << noLoopSVFGNode_PTIG << "\n";
-        std::cout << "No GepInLoop Branch SVFGNode Num:" << noGepInLoopSVFGNode_PTIG << "\n";
-        std::cout << "Loop Branch Compute Time: " << loopBranchComputeTime << "\n";
-        std::cout << "*********************\n";
+        std::cout << "No Branch-in-Loop SVFGNode Num:" << noLoopSVFGNode_PTIG << "\n";
+        std::cout << "Loop-insensitive SVFGNode Num:" << noGepInLoopSVFGNode_PTIG << "\n";
+        if (Options::RicanDebug())
+            std::cout << "Loop Branch Compute Time: " << loopBranchComputeTime << "\n";
+        if (Options::RicanDebug())
+            std::cout << "*********************\n";
                     
         // Compute branch conflict
-        
-        double branchConflictComputeStart = SVFStat::myClk();
-        for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
-        {
-            keyBranches.insert(it->second.begin(), it->second.end());
+        if (Options::computeBranchConflict()){
+            double branchConflictComputeStart = SVFStat::myClk();
+            for (auto it = svfgNodeToBranches_PTIA.begin(), eit = svfgNodeToBranches_PTIA.end(); it != eit; ++it)
+            {
+                keyBranches.insert(it->second.begin(), it->second.end());
+            }
+            
+            buildBVConflictMap();
+            double branchConflictComputeEnd = SVFStat::myClk();
+            double branchConflictComputeTime = (branchConflictComputeEnd - branchConflictComputeStart) / TIMEINTERVAL;
+            printBVConflictMap();
+            if (Options::RicanDebug())
+                std::cout << "Branch Conflict Compute Time: " << branchConflictComputeTime << "\n";
         }
-        
-        buildBVConflictMap();
-        double branchConflictComputeEnd = SVFStat::myClk();
-        double branchConflictComputeTime = (branchConflictComputeEnd - branchConflictComputeStart) / TIMEINTERVAL;
-        printBVConflictMap();
-        std::cout << "Branch Conflict Compute Time: " << branchConflictComputeTime << "\n";
     }
     double postProcessEnd = SVFStat::myClk();
     double postProcessTime = (postProcessEnd - postProcessStart) / TIMEINTERVAL;
-    std::cout << "Post Process Time: " << postProcessTime << "\n";
+    std::cout << "Rican Post Process Time: " << postProcessTime << "\n";
 
     finalize();
 

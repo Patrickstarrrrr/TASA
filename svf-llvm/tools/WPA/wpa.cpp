@@ -73,9 +73,16 @@ int main(int argc, char** argv)
                 const llvm::Value* value = LLVMModuleSet::getLLVMModuleSet()->getLLVMValue(node->getValue());
                 if (value)
                 {
-                    std::cout << "PAGNode: " << node->getId() << "\n";
-                    node->dump();
-                    std::cout << "\n" << " Variable Name: " << LLVMUtil::dumpVariableName(value) << "\n";
+                    std::string varName = LLVMUtil::dumpVariableName(value);
+                    if (!varName.empty())
+                    {
+                        std::cout << "PAGNode: " << node->getId() << "\n";
+                        node->dump();
+                        std::cout << "\n" << " Variable Name: " << varName << "\n";
+                    }
+                    // std::cout << "PAGNode: " << node->getId() << "\n";
+                    // node->dump();
+                    // std::cout << "\n" << " Variable Name: " << LLVMUtil::dumpVariableName(value) << "\n";
                 }
             }
         }

@@ -800,10 +800,11 @@ const Option<bool> Options::RunUncallFuncs(
 const Option<bool> Options::ICFGMergeAdjacentNodes(
     "icfg-merge-adjnodes","ICFG Simplification - Merge Adjacent Nodes in the Same Basic Block.",false);
 const Option<bool> Options::UAFCheck(
-    "uaf", "Use After Free Detection",false);
+    "myuaf", "Use After Free Detection",false);
 const Option<bool> Options::NPDCheck(
     "npd", "Null Pointer Dereference Detection",false);
-
+const Option<bool> Options::MyUAFCheck(
+    "uaf", "My Use After Free Detection",false);
 const Option<u32_t> Options::AEPrecision(
     "precision",
     "symbolic abstraction precision for float",
@@ -835,4 +836,28 @@ const Option<bool> Options::EnablePTIG(
     true
 );
 
+const Option<bool> Options::NoPathSolver(
+    "no-path-solver", "Disable path solver in ProgSlice",
+    false
+);
+
+const Option<bool> Options::computeBranchConflict(
+    "compute-branch-conflict", "Compute branch conflict map in SrcSnkDDA",
+    false
+);
+
+const Option<bool> Options::computeBackwardBranchNum(
+    "compute-backward-branch-num", "Compute the number of backward branches in SrcSnkDDA",
+    false
+);
+
+const Option<bool> Options::RicanDebug(
+    "rican-debug", "Enable Rican debug mode",
+    false
+);
+
+const Option<bool> Options::FlowsensitiveSaber(
+    "flowsensitive-saber", "Use flow-sensitive analysis in Saber",
+    false
+);
 } // namespace SVF.

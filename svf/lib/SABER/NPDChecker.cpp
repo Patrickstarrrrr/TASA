@@ -14,53 +14,62 @@ void NPDChecker::initSrcs()
     const SVFGNode* nullptrNode = getSVFG()->getSVFGNode(0);
     if (auto n = SVFUtil::dyn_cast<NullPtrSVFGNode>(nullptrNode))
     {
-        for (auto it = n->OutEdgeBegin(), eit = n->OutEdgeEnd(); it != eit; ++it)
-        {
-            const SVFGNode* node = (*it)->getDstNode();
-            if (SVFUtil::isa<StoreSVFGNode>(node))
-            {
-                addToSources(node);
-                addSrcToCSID(node, nullptr);
-            }   
-        }
+        addToSources(n);
+        addSrcToCSID(n, nullptr);
+
+        // for (auto it = n->OutEdgeBegin(), eit = n->OutEdgeEnd(); it != eit; ++it)
+        // {
+        //     const SVFGNode* node = (*it)->getDstNode();
+        //     if (SVFUtil::isa<StoreSVFGNode>(node))
+        //     {
+        //         addToSources(node);
+        //         addSrcToCSID(node, nullptr);
+        //     }   
+        // }
         
     }
 }
 
 void  NPDChecker::initSnks()
 {
-    for (auto it = svfg->begin(), eit = svfg->end(); it != eit; ++it)
+    for (auto derefnode: svfg->dereferenceSVFNodes)
     {
-        const SVFGNode* node = it->second;
-        if (const LoadSVFGNode* loadnode = SVFUtil::dyn_cast<LoadSVFGNode>(node))
-        {
-            const PAGNode* loaddst = loadnode->getPAGDstNode();
-            for (auto loadoutit = loadnode->OutEdgeBegin(), loadouteit = loadnode->OutEdgeEnd(); loadoutit != loadouteit; ++loadoutit)
-            {
-                const SVFGNode* loadoutnode = (*loadoutit)->getDstNode();
-                if (const LoadSVFGNode* loadload = SVFUtil::dyn_cast<LoadSVFGNode>(loadoutnode)) 
-                {
-                    const PAGNode* loadloadsrc = loadload->getPAGSrcNode();
-                    if (loadloadsrc == loaddst)
-                    {
-                        addToSinks(loadload);
-                        addSinkToPAGNodeMap(loadnode, loaddst);
-                        addSnkToCSID(loadnode, nullptr); // snk info
-                    }
-                }
-                else if (const StoreSVFGNode* loadstore = SVFUtil::dyn_cast<StoreSVFGNode>(loadoutnode)) 
-                {
-                    const PAGNode* loadstoredst = loadstore->getPAGDstNode();
-                    if (loadstoredst == loaddst)
-                    {
-                        addToSinks(loadstore);
-                        addSinkToPAGNodeMap(loadnode, loaddst);
-                        addSnkToCSID(loadnode, nullptr); // snk info
-                    }
-                }
-            }
-        }
+        addToSinks(derefnode);
+        addSnkToCSID(derefnode, nullptr); // snk info
+        // useSinkSVFGNodes.set(derefnode->getId());
     }
+    // for (auto it = svfg->begin(), eit = svfg->end(); it != eit; ++it)
+    // {
+    //     const SVFGNode* node = it->second;
+    //     if (const LoadSVFGNode* loadnode = SVFUtil::dyn_cast<LoadSVFGNode>(node))
+    //     {
+    //         const PAGNode* loaddst = loadnode->getPAGDstNode();
+    //         for (auto loadoutit = loadnode->OutEdgeBegin(), loadouteit = loadnode->OutEdgeEnd(); loadoutit != loadouteit; ++loadoutit)
+    //         {
+    //             const SVFGNode* loadoutnode = (*loadoutit)->getDstNode();
+    //             if (const LoadSVFGNode* loadload = SVFUtil::dyn_cast<LoadSVFGNode>(loadoutnode)) 
+    //             {
+    //                 const PAGNode* loadloadsrc = loadload->getPAGSrcNode();
+    //                 if (loadloadsrc == loaddst)
+    //                 {
+    //                     addToSinks(loadnode);
+    //                     addSinkToPAGNodeMap(loadnode, loaddst);
+    //                     addSnkToCSID(loadnode, nullptr); // snk info
+    //                 }
+    //             }
+    //             else if (const StoreSVFGNode* loadstore = SVFUtil::dyn_cast<StoreSVFGNode>(loadoutnode)) 
+    //             {
+    //                 const PAGNode* loadstoredst = loadstore->getPAGDstNode();
+    //                 if (loadstoredst == loaddst)
+    //                 {
+    //                     addToSinks(loadnode);
+    //                     addSinkToPAGNodeMap(loadnode, loaddst);
+    //                     addSnkToCSID(loadnode, nullptr); // snk info
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 void NPDChecker::reportBug(ProgSlice* slice)

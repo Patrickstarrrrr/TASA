@@ -1238,6 +1238,8 @@ void LLVMModuleSet::setValueAttr(const Value* val, SVFValue* svfvalue)
     svfvalue->setSourceLoc(LLVMUtil::getSourceLoc(val));
     svfvalue->setSourceFile(LLVMUtil::getSourceFile(val));
     svfvalue->setSourceLine(LLVMUtil::getSourceLine(val));
+    if (Options::SVFGVariableName())
+        svfvalue->setVariableName(LLVMUtil::dumpVariableName(val));
 }
 
 void LLVMModuleSet::setValueAttr(const SVF::Value* val, SVF::SVFBaseNode* svfBaseNode)
@@ -1246,6 +1248,8 @@ void LLVMModuleSet::setValueAttr(const SVF::Value* val, SVF::SVFBaseNode* svfBas
     svfBaseNode->setSourceLoc(LLVMUtil::getSourceLoc(val));
     svfBaseNode->setSourceFile(LLVMUtil::getSourceFile(val));
     svfBaseNode->setSourceLine(LLVMUtil::getSourceLine(val));
+    if (Options::SVFGVariableName())
+        svfBaseNode->setVariableName(LLVMUtil::dumpVariableName(val));
 }
 
 SVFConstantData* LLVMModuleSet::getSVFConstantData(const ConstantData* cd)

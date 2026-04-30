@@ -27,6 +27,7 @@
  */
 
 #include "SABER/NPDChecker.h"
+#include "SABER/MyUAFChecker.h"
 #include "SVF-LLVM/LLVMUtil.h"
 #include "SVF-LLVM/SVFIRBuilder.h"
 #include "SABER/LeakChecker.h"
@@ -72,6 +73,8 @@ int main(int argc, char ** argv)
         saber = std::make_unique<UAFChecker>();
     else if(Options::NPDCheck())
         saber = std::make_unique<NPDChecker>();
+    else if(Options::MyUAFCheck())
+        saber = std::make_unique<MyUAFChecker>();
     else
         saber = std::make_unique<LeakChecker>();  // if no checker is specified, we use leak checker as the default one.
 

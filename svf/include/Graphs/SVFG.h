@@ -110,6 +110,8 @@ public:
     NodeBS DFSrcSet, DFSnkSet;
 
 public:
+    Set<const SVFGNode*> dereferenceSVFNodes;
+    void computeDereferenceSVFNodes();
     void computeReachableNodesByID(NodeID id);
     void computeBackwardReachableNodesByID(NodeID id);
     void initInputNodeSet();
@@ -488,6 +490,9 @@ protected:
         return (callSiteToActualINMap.find(cs) != callSiteToActualINMap.end());
     }
     //@}
+    public:
+    void computeInputReachable();
+    
 };
 
 } // End namespace SVF
